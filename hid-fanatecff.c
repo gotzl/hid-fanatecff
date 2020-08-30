@@ -69,7 +69,7 @@ static ssize_t ftec_set_display(struct device *dev, struct device_attribute *att
 	struct ftec_drv_data *drv_data;
 	unsigned long flags;
 	s32 *value;
-	u16 val = simple_strtoul(buf, NULL, 10);
+	s16 val = simple_strtoul(buf, NULL, 10);
 
 	drv_data = hid_get_drvdata(hid);
 	if (!drv_data) {
@@ -86,10 +86,16 @@ static ssize_t ftec_set_display(struct device *dev, struct device_attribute *att
 	value[1] = 0x09;
 	value[2] = 0x01;
 	value[3] = 0x02;
-	value[4] = seg_bits((val/100)%100);
-	value[5] = seg_bits((val/10)%10);
-	value[6] = seg_bits(val%10);
+	value[4] = 0x00;
+	value[5] = 0x00;
+	value[6] = 0x00;
 	
+	if (val>0) {
+		value[4] = seg_bits((val/100)%100);
+		value[5] = seg_bits((val/10)%10);
+		value[6] = seg_bits(val%10);
+	}
+
 	fix_values(value);
 	hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
 	spin_unlock_irqrestore(&drv_data->report_lock, flags);
