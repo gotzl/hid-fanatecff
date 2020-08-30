@@ -14,7 +14,7 @@ MODULE_DESCRIPTION("A driver for the Fanatec CSL Elite Wheel Base");
 
 #define LEDS 9
 
-int hid_debug = 1;
+int hid_debug = 0;
 
 struct ftec_drv_data {
 	spinlock_t report_lock; /* Protect output HID report */
@@ -69,7 +69,7 @@ static ssize_t ftec_set_display(struct device *dev, struct device_attribute *att
 	struct ftec_drv_data *drv_data;
 	unsigned long flags;
 	s32 *value;
-	s16 val = simple_strtoul(buf, NULL, 10);
+	s16 val = simple_strtol(buf, NULL, 10);
 
 	drv_data = hid_get_drvdata(hid);
 	if (!drv_data) {
@@ -77,7 +77,7 @@ static ssize_t ftec_set_display(struct device *dev, struct device_attribute *att
 		return -EINVAL;
 	}
 
-	dbg_hid(" ... set_display %04X\n", val);
+	dbg_hid(" ... set_display %i\n", val);
 	
 	value = drv_data->report->field[0]->value;
 
@@ -89,8 +89,8 @@ static ssize_t ftec_set_display(struct device *dev, struct device_attribute *att
 	value[4] = 0x00;
 	value[5] = 0x00;
 	value[6] = 0x00;
-	
-	if (val>0) {
+
+	if (val>=0) {
 		value[4] = seg_bits((val/100)%100);
 		value[5] = seg_bits((val/10)%10);
 		value[6] = seg_bits(val%10);
