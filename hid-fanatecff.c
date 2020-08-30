@@ -13,14 +13,117 @@ MODULE_AUTHOR("gotzl");
 MODULE_DESCRIPTION("A driver for the Fanatec CSL Elite Wheel Base");
 
 int hid_debug = 1;
-struct ftech_drv_data {
+struct ftec_drv_data {
+	spinlock_t report_lock; /* Protect output HID report */
 	struct hid_report *report;
+#ifdef CONFIG_LEDS_CLASS
+	u8  led_state;
+	struct led_classdev *led[5];	
+#endif
 };
+
+/* This is realy weird... if i put a value >0x80 into the report,
+   the actual value send to the device will be 0x7f. I suspect it has
+   s.t. todo with the report fields min/max range, which is -127 to 128
+   but I don't know how to handle this properly... So, here a hack around 
+   this issue
+*/
+void fix_values(s32 *values) {
+	int i;
+	for(i=0;i<7;i++) {
+		if (values[i]>0x80) 
+			values[i] = -0x100 + values[i];
+	}
+}
+
+
+#ifdef CONFIG_LEDS_CLASS
+static void ftec_set_leds(struct hid_device *hid, u8 leds)
+{
+	struct ftec_drv_data *drv_data;
+	unsigned long flags;
+	s32 *value;
+
+	dbg_hid(" ... set_leds %02X\n",leds);
+
+	drv_data = hid_get_drvdata(hid);
+	if (!drv_data) {
+		hid_err(hid, "Private driver data not found!\n");
+		return;
+	}
+
+	value = drv_data->report->field[0]->value;
+
+	spin_lock_irqsave(&drv_data->report_lock, flags);
+	value[0] = 0xf8;
+	value[1] = 0x09;
+	value[2] = 0x08;
+	value[3] = 0x01;
+	value[4] = leds;
+	value[5] = 0x00;
+	value[6] = 0x00;
+	
+	fix_values(value);
+	hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
+	spin_unlock_irqrestore(&drv_data->report_lock, flags);
+}
+
+static void ftec_led_set_brightness(struct led_classdev *led_cdev,
+			enum led_brightness value)
+{
+	struct device *dev = led_cdev->dev->parent;
+	struct hid_device *hid = to_hid_device(dev);
+	struct ftec_drv_data *drv_data = hid_get_drvdata(hid);
+	int i, state = 0;
+
+	if (!drv_data) {
+		hid_err(hid, "Device data not found.");
+		return;
+	}
+
+	for (i = 0; i < 5; i++) {
+		if (led_cdev != drv_data->led[i])
+			continue;
+		state = (drv_data->led_state >> i) & 1;
+		if (value == LED_OFF && state) {
+			drv_data->led_state &= ~(1 << i);
+			ftec_set_leds(hid, drv_data->led_state);
+		} else if (value != LED_OFF && !state) {
+			drv_data->led_state |= 1 << i;
+			ftec_set_leds(hid, drv_data->led_state);
+		}
+		break;
+	}
+}
+
+static enum led_brightness ftec_led_get_brightness(struct led_classdev *led_cdev)
+{
+	struct device *dev = led_cdev->dev->parent;
+	struct hid_device *hid = to_hid_device(dev);
+	struct ftec_drv_data *drv_data = hid_get_drvdata(hid);
+	int i, value = 0;
+
+	if (!drv_data) {
+		hid_err(hid, "Device data not found.");
+		return LED_OFF;
+	}
+
+	for (i = 0; i < 5; i++)
+		if (led_cdev == drv_data->led[i]) {
+			value = (drv_data->led_state >> i) & 1;
+			break;
+		}
+
+	return value ? LED_FULL : LED_OFF;
+}
+#endif
+
 
 static int ff_play_effect_memless(struct input_dev *dev, void *data, struct ff_effect *effect)
 {
 	struct hid_device *hid = input_get_drvdata(dev);
-	struct ftech_drv_data *drv_data;	
+	struct ftec_drv_data *drv_data;	
+	unsigned long flags;
 	s32 *value;
     int x;
 
@@ -41,6 +144,7 @@ static int ff_play_effect_memless(struct input_dev *dev, void *data, struct ff_e
 
 #define CLAMP(x) do { if (x < 0) x = 0; else if (x > 0xff) x = 0xff; } while (0)
 
+	spin_lock_irqsave(&drv_data->report_lock, flags);
 	switch (effect->type) {
 		case FF_CONSTANT:
 			x = effect->u.ramp.start_level  + 0x80; /* 0x80 is no force */
@@ -49,7 +153,7 @@ static int ff_play_effect_memless(struct input_dev *dev, void *data, struct ff_e
 
 			value[0] = 0x01;
 			value[1] = 0x08;
-			value[2] = x<0x80 ? x : -256 + x; // FIXME: why??
+			value[2] = x;
 			value[3] = 0x00;
 			value[4] = 0x00;
 			value[5] = 0x00;
@@ -59,8 +163,8 @@ static int ff_play_effect_memless(struct input_dev *dev, void *data, struct ff_e
 				value[0] = 0x03;
 				value[2] = 0x00;
 			}
+			fix_values(value);
         	// printk(KERN_WARNING "Wheel constant: %04X\n", value[2]);
-
 			hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
 			break;
 
@@ -81,15 +185,105 @@ static int ff_play_effect_memless(struct input_dev *dev, void *data, struct ff_e
                            effect->u.condition[0].deadband);
         break;
     }
+	spin_unlock_irqrestore(&drv_data->report_lock, flags);
 	return 0;	
 }
 
-int ftech_init(struct hid_device *hdev) {
+int ftec_init_led(struct hid_device *hid) {
+	struct led_classdev *led;
+	size_t name_sz;
+	char *name;
+	struct ftec_drv_data *drv_data;
+	int ret, j;
+
+	drv_data = hid_get_drvdata(hid);
+	if (!drv_data) {
+		hid_err(hid, "Cannot add device, private driver data not allocated\n");
+		return -1;
+	}
+
+	{ 
+		// wheel LED initialization sequence
+		// not sure what's needed 
+		s32 *value;
+		value = drv_data->report->field[0]->value;
+
+		value[0] = 0xf8;
+		value[1] = 0x13;
+		value[2] = 0x00;
+		value[3] = 0x00;
+		value[4] = 0x00;
+		value[5] = 0x00;
+		value[6] = 0x00;
+		fix_values(value);
+		hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
+
+		value[1] = 0x14;
+		value[2] = 0xff;
+		fix_values(value);
+		hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
+
+		value[1] = 0x09;
+		value[2] = 0x02;		
+		value[3] = 0x01;
+		fix_values(value);
+		hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
+
+		value[1] = 0x09;
+		value[2] = 0x08;		
+		value[3] = 0x01;
+		fix_values(value);
+		hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
+	}
+
+	drv_data->led_state = 0;
+	for (j = 0; j < 5; j++)
+		drv_data->led[j] = NULL;
+
+	name_sz = strlen(dev_name(&hid->dev)) + 8;
+
+	for (j = 0; j < 5; j++) {
+		led = kzalloc(sizeof(struct led_classdev)+name_sz, GFP_KERNEL);
+		if (!led) {
+			hid_err(hid, "can't allocate memory for LED %d\n", j);
+			goto err_leds;
+		}
+
+		name = (void *)(&led[1]);
+		snprintf(name, name_sz, "%s::RPM%d", dev_name(&hid->dev), j+1);
+		led->name = name;
+		led->brightness = 0;
+		led->max_brightness = 1;
+		led->brightness_get = ftec_led_get_brightness;
+		led->brightness_set = ftec_led_set_brightness;
+
+		drv_data->led[j] = led;
+		ret = led_classdev_register(&hid->dev, led);
+
+		if (ret) {
+			hid_err(hid, "failed to register LED %d. Aborting.\n", j);
+err_leds:
+			/* Deregister LEDs (if any) */
+			for (j = 0; j < 5; j++) {
+				led = drv_data->led[j];
+				drv_data->led[j] = NULL;
+				if (!led)
+					continue;
+				led_classdev_unregister(led);
+				kfree(led);
+			}
+			return -1;
+		}
+	}
+	return 0;
+}
+
+int ftec_init(struct hid_device *hdev) {
     struct hid_input *hidinput = list_entry(hdev->inputs.next, struct hid_input, list);
     struct input_dev *inputdev = hidinput->input;
 	struct list_head *report_list = &hdev->report_enum[HID_OUTPUT_REPORT].report_list;
 	struct hid_report *report = list_entry(report_list->next, struct hid_report, list);	
-	struct ftech_drv_data *drv_data;
+	struct ftec_drv_data *drv_data;
 
 	dbg_hid(" ... %i %i %i %i %i %i\n%i %i %i %i\n\n", 
 		report->id, report->type, report->application,
@@ -109,6 +303,7 @@ int ftech_init(struct hid_device *hdev) {
 	}
 
 	drv_data->report = report;
+	spin_lock_init(&drv_data->report_lock);
 
     dbg_hid(" ... setting FF bits");
 	set_bit(FF_CONSTANT, inputdev->ffbit);
@@ -116,17 +311,17 @@ int ftech_init(struct hid_device *hdev) {
 	return input_ff_create_memless(inputdev, NULL, ff_play_effect_memless);
 }
 
-static int ftech_probe(struct hid_device *hdev, const struct hid_device_id *id)
+static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 {
 	struct usb_interface *iface = to_usb_interface(hdev->dev.parent);
 	__u8 iface_num = iface->cur_altsetting->desc.bInterfaceNumber;
-	struct ftech_drv_data *drv_data;
+	struct ftec_drv_data *drv_data;
 	unsigned int connect_mask = HID_CONNECT_DEFAULT;
     int ret;
 
 	dbg_hid("%s: ifnum %d\n", __func__, iface_num);
 
-	drv_data = kzalloc(sizeof(struct ftech_drv_data), GFP_KERNEL);
+	drv_data = kzalloc(sizeof(struct ftec_drv_data), GFP_KERNEL);
 	if (!drv_data) {
 		hid_err(hdev, "Insufficient memory, cannot allocate driver data\n");
 		return -ENOMEM;
@@ -146,11 +341,17 @@ static int ftech_probe(struct hid_device *hdev, const struct hid_device_id *id)
 		goto err_free;
 	}
 
-	ret = ftech_init(hdev);
+	ret = ftec_init(hdev);
 	if (ret) {
 		hid_err(hdev, "hw init failed\n");
 		goto err_stop;
-	}	
+	}
+
+#ifdef CONFIG_LEDS_CLASS
+	if (ftec_init_led(hdev)) {
+		hid_err(hdev, "LED init failed\n"); /* Let the driver continue without LEDs */
+	}
+#endif
 
 	return 0;
 
@@ -161,9 +362,27 @@ err_free:
 	return ret;
 }
 
-static void ftech_remove(struct hid_device *hdev)
+static void ftec_remove(struct hid_device *hdev)
 {
-	struct ftech_drv_data *drv_data = hid_get_drvdata(hdev);
+	struct ftec_drv_data *drv_data = hid_get_drvdata(hdev);
+
+#ifdef CONFIG_LEDS_CLASS
+	{
+		int j;
+		struct led_classdev *led;
+
+		/* Deregister LEDs (if any) */
+		for (j = 0; j < 5; j++) {
+
+			led = drv_data->led[j];
+			drv_data->led[j] = NULL;
+			if (!led)
+				continue;
+			led_classdev_unregister(led);
+			kfree(led);
+		}
+	}
+#endif
 
 	hid_hw_stop(hdev);
 	kfree(drv_data);
@@ -180,10 +399,10 @@ static const struct hid_device_id devices[] = {
 
 MODULE_DEVICE_TABLE(hid, devices);
 
-static struct hid_driver ftech_csl_elite = {
-		.name = "ftech_csl_elite",
+static struct hid_driver ftec_csl_elite = {
+		.name = "ftec_csl_elite",
 		.id_table = devices,
-        .probe = ftech_probe,
-        .remove = ftech_remove,        
+        .probe = ftec_probe,
+        .remove = ftec_remove,        
 };
-module_hid_driver(ftech_csl_elite)
+module_hid_driver(ftec_csl_elite)

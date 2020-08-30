@@ -43,9 +43,10 @@ if __name__ == '__main__':
         handle.setAutoDetachKernelDriver(True)
         with handle.claimInterface(0):
             # request reading of current value
-            handle.interruptWrite(0x01, payload(CMD_FORCE_SPRING+[val]))
-            time.sleep(1)
-            handle.interruptWrite(0x01, payload(CMD_FORCE_SPRING_DISABLE))
+            handle.interruptWrite(0x01, payload(CMD_LED_BASE+CMD_WHEEL_LED+[val]))
+            # handle.interruptWrite(0x01, payload(CMD_FORCE_SPRING+[val]))
+            # time.sleep(1)
+            # handle.interruptWrite(0x01, payload(CMD_FORCE_SPRING_DISABLE))
             # handle.interruptWrite(0x01, payload(CMD_SIMPLE_SPRING_ENABLE+CMD_SIMPLE_SPRING_ARGS))
             # time.sleep(5)
             # handle.interruptWrite(0x01, payload(CMD_SIMPLE_SPRING_DISABLE))
