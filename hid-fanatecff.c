@@ -12,13 +12,16 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("gotzl");
 MODULE_DESCRIPTION("A driver for the Fanatec CSL Elite Wheel Base");
 
+#define LEDS 9
+
 int hid_debug = 1;
+
 struct ftec_drv_data {
 	spinlock_t report_lock; /* Protect output HID report */
 	struct hid_report *report;
 #ifdef CONFIG_LEDS_CLASS
-	u8  led_state;
-	struct led_classdev *led[5];	
+	u16 led_state;
+	struct led_classdev *led[LEDS];	
 #endif
 };
 
@@ -28,7 +31,7 @@ struct ftec_drv_data {
    but I don't know how to handle this properly... So, here a hack around 
    this issue
 */
-void fix_values(s32 *values) {
+static void fix_values(s32 *values) {
 	int i;
 	for(i=0;i<7;i++) {
 		if (values[i]>0x80) 
@@ -36,15 +39,76 @@ void fix_values(s32 *values) {
 	}
 }
 
+static u8 num[11][8] = {  { 1,1,1,1,1,1,0,0 },  // 0
+						{ 0,1,1,0,0,0,0,0 },  // 1
+						{ 1,1,0,1,1,0,1,0 },  // 2
+						{ 1,1,1,1,0,0,1,0 },  // 3
+						{ 0,1,1,0,0,1,1,0 },  // 4
+						{ 1,0,1,1,0,1,1,0 },  // 5
+						{ 1,0,1,1,1,1,1,0 },  // 6
+						{ 1,1,1,0,0,0,0,0 },  // 7
+						{ 1,1,1,1,1,1,1,0 },  // 8
+						{ 1,1,1,0,0,1,1,0 },  // 9
+						{ 0,0,0,0,0,0,0,1}};  // dot
+
+static u8 seg_bits(u8 value) {
+	int i;
+	u8 bits = 0;
+
+	for( i=0; i<8; i++) {
+		if (num[value][i]) 
+			bits |= 1 << i;
+	}
+	return bits;
+}
+
+static ssize_t ftec_set_display(struct device *dev, struct device_attribute *attr,
+				 const char *buf, size_t count)
+{
+	struct hid_device *hid = to_hid_device(dev);
+	struct ftec_drv_data *drv_data;
+	unsigned long flags;
+	s32 *value;
+	u16 val = simple_strtoul(buf, NULL, 10);
+
+	drv_data = hid_get_drvdata(hid);
+	if (!drv_data) {
+		hid_err(hid, "Private driver data not found!\n");
+		return -EINVAL;
+	}
+
+	dbg_hid(" ... set_display %04X\n", val);
+	
+	value = drv_data->report->field[0]->value;
+
+	spin_lock_irqsave(&drv_data->report_lock, flags);
+	value[0] = 0xf8;
+	value[1] = 0x09;
+	value[2] = 0x01;
+	value[3] = 0x02;
+	value[4] = seg_bits((val/100)%100);
+	value[5] = seg_bits((val/10)%10);
+	value[6] = seg_bits(val%10);
+	
+	fix_values(value);
+	hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
+	spin_unlock_irqrestore(&drv_data->report_lock, flags);
+
+	return count;
+}
+static DEVICE_ATTR(display, S_IWUSR | S_IWGRP, NULL, ftec_set_display);
+
 
 #ifdef CONFIG_LEDS_CLASS
-static void ftec_set_leds(struct hid_device *hid, u8 leds)
+static void ftec_set_leds(struct hid_device *hid, u16 leds)
 {
 	struct ftec_drv_data *drv_data;
 	unsigned long flags;
 	s32 *value;
+	u16 _leds = 0;
+	int i;
 
-	dbg_hid(" ... set_leds %02X\n",leds);
+	dbg_hid(" ... set_leds %04X\n", leds);
 
 	drv_data = hid_get_drvdata(hid);
 	if (!drv_data) {
@@ -52,14 +116,21 @@ static void ftec_set_leds(struct hid_device *hid, u8 leds)
 		return;
 	}
 
+	// reshuffle, since first led is highest bit
+	for( i=0; i<LEDS; i++) {
+		if (leds>>i & 1) _leds |= 1 << (LEDS-i-1);
+	}
+
+	dbg_hid(" ... set_leds actual %04X\n", _leds);
+
 	value = drv_data->report->field[0]->value;
 
 	spin_lock_irqsave(&drv_data->report_lock, flags);
 	value[0] = 0xf8;
 	value[1] = 0x09;
 	value[2] = 0x08;
-	value[3] = 0x01;
-	value[4] = leds;
+	value[3] = (_leds>>8)&0xff;
+	value[4] = _leds&0xff;
 	value[5] = 0x00;
 	value[6] = 0x00;
 	
@@ -81,7 +152,7 @@ static void ftec_led_set_brightness(struct led_classdev *led_cdev,
 		return;
 	}
 
-	for (i = 0; i < 5; i++) {
+	for (i = 0; i < LEDS; i++) {
 		if (led_cdev != drv_data->led[i])
 			continue;
 		state = (drv_data->led_state >> i) & 1;
@@ -108,7 +179,7 @@ static enum led_brightness ftec_led_get_brightness(struct led_classdev *led_cdev
 		return LED_OFF;
 	}
 
-	for (i = 0; i < 5; i++)
+	for (i = 0; i < LEDS; i++)
 		if (led_cdev == drv_data->led[i]) {
 			value = (drv_data->led_state >> i) & 1;
 			break;
@@ -237,12 +308,12 @@ int ftec_init_led(struct hid_device *hid) {
 	}
 
 	drv_data->led_state = 0;
-	for (j = 0; j < 5; j++)
+	for (j = 0; j < LEDS; j++)
 		drv_data->led[j] = NULL;
 
 	name_sz = strlen(dev_name(&hid->dev)) + 8;
 
-	for (j = 0; j < 5; j++) {
+	for (j = 0; j < LEDS; j++) {
 		led = kzalloc(sizeof(struct led_classdev)+name_sz, GFP_KERNEL);
 		if (!led) {
 			hid_err(hid, "can't allocate memory for LED %d\n", j);
@@ -264,7 +335,7 @@ int ftec_init_led(struct hid_device *hid) {
 			hid_err(hid, "failed to register LED %d. Aborting.\n", j);
 err_leds:
 			/* Deregister LEDs (if any) */
-			for (j = 0; j < 5; j++) {
+			for (j = 0; j < LEDS; j++) {
 				led = drv_data->led[j];
 				drv_data->led[j] = NULL;
 				if (!led)
@@ -347,10 +418,14 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 		goto err_stop;
 	}
 
+	/* Create sysfs interface */
+	ret = device_create_file(&hdev->dev, &dev_attr_display);
+	if (ret)
+		hid_warn(hdev, "Unable to create sysfs interface for \"display\", errno %d\n", ret);  /* Let the driver continue without display */
+
 #ifdef CONFIG_LEDS_CLASS
-	if (ftec_init_led(hdev)) {
+	if (ftec_init_led(hdev))
 		hid_err(hdev, "LED init failed\n"); /* Let the driver continue without LEDs */
-	}
 #endif
 
 	return 0;
@@ -366,13 +441,14 @@ static void ftec_remove(struct hid_device *hdev)
 {
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hdev);
 
+	device_remove_file(&hdev->dev, &dev_attr_display);
 #ifdef CONFIG_LEDS_CLASS
 	{
 		int j;
 		struct led_classdev *led;
 
 		/* Deregister LEDs (if any) */
-		for (j = 0; j < 5; j++) {
+		for (j = 0; j < LEDS; j++) {
 
 			led = drv_data->led[j];
 			drv_data->led[j] = NULL;

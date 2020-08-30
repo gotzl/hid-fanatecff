@@ -14,10 +14,10 @@ In case the `insmod` doesn't work because of unknown symbols, do `modprobe ff_me
 
 ## Status
 - Some support for `FF_CONSTANT`, implemented somehow analogous to `hid-lgff`. This seems to be enough to get rudimentary force-feedback support in most games.
-- Some support for wheel LEDs: LEDs are accessable via sysfs, mapping not yet corrct though 
+- Some support for wheel LEDs: LEDs are accessable via sysfs, mapping not yet corrct though, see f1-2020.py as an example
+- Some support for wheel display: a sysfs file exists where a number can be written to, see f1-2020.py as an example
 
 ## Planned
 - support more effects
 - support wheelbase LEDs
-- support wheel display
 - maybe support CSL Elite pedals (eg loadcell adjustment)
