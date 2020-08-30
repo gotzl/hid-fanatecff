@@ -23,5 +23,5 @@ In case the `insmod` doesn't work because of unknown symbols, do `modprobe ff_me
 - support wheelbase LEDs
 - maybe support CSL Elite pedals (eg loadcell adjustment)
 
-## Disclaime
+## Disclaimer
 I take absolutly *no* responsibility for any malfunction of this driver and their consequences. If your device breaks or your hands get ripped off I'm sorry, though ;)
