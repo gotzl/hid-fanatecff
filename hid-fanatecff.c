@@ -13,15 +13,17 @@ MODULE_AUTHOR("gotzl");
 MODULE_DESCRIPTION("A driver for the Fanatec CSL Elite Wheel Base");
 
 #define LEDS 9
-
+#define MIN_RANGE 90
+#define MAX_RANGE 1080
 int hid_debug = 0;
 
 struct ftec_drv_data {
 	spinlock_t report_lock; /* Protect output HID report */
 	struct hid_report *report;
+	u16 range;
 #ifdef CONFIG_LEDS_CLASS
 	u16 led_state;
-	struct led_classdev *led[LEDS];	
+	struct led_classdev *led[LEDS];
 #endif
 };
 
@@ -61,6 +63,102 @@ static u8 seg_bits(u8 value) {
 	}
 	return bits;
 }
+
+static void ftec_set_range(struct hid_device *hid, u16 range)
+{
+	struct ftec_drv_data *drv_data;
+	unsigned long flags;
+	s32 *value;
+
+	drv_data = hid_get_drvdata(hid);
+	if (!drv_data) {
+		hid_err(hid, "Private driver data not found!\n");
+		return;
+	}
+	value = drv_data->report->field[0]->value;
+	dbg_hid("setting range to %u\n", range);
+
+	/* Prepare "coarse" limit command */
+	spin_lock_irqsave(&drv_data->report_lock, flags);
+	value[0] = 0xf5;
+	value[1] = 0x00;
+	value[2] = 0x00;
+	value[3] = 0x00;
+	value[4] = 0x00;
+	value[5] = 0x00;
+	value[6] = 0x00;
+	fix_values(value);
+	hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
+
+	value[0] = 0xf8;
+	value[1] = 0x09;
+	value[2] = 0x01;
+	value[3] = 0x06;
+	value[4] = 0x01;
+	value[5] = 0x00;
+	value[6] = 0x00;
+	fix_values(value);
+	hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
+
+	value[0] = 0xf8;
+	value[1] = 0x81;
+	value[2] = range&0xff;
+	value[3] = (range>>8)&0xff;
+	value[4] = 0x00;
+	value[5] = 0x00;
+	value[6] = 0x00;
+	fix_values(value);
+	hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
+	spin_unlock_irqrestore(&drv_data->report_lock, flags);
+}
+
+/* Export the currently set range of the wheel */
+static ssize_t ftec_range_show(struct device *dev, struct device_attribute *attr,
+				char *buf)
+{
+	struct hid_device *hid = to_hid_device(dev);
+	struct ftec_drv_data *drv_data;
+	size_t count;
+
+	drv_data = hid_get_drvdata(hid);
+	if (!drv_data) {
+		hid_err(hid, "Private driver data not found!\n");
+		return 0;
+	}
+
+	count = scnprintf(buf, PAGE_SIZE, "%u\n", drv_data->range);
+	return count;
+}
+
+/* Set range to user specified value, call appropriate function
+ * according to the type of the wheel */
+static ssize_t ftec_range_store(struct device *dev, struct device_attribute *attr,
+				 const char *buf, size_t count)
+{
+	struct hid_device *hid = to_hid_device(dev);
+	struct ftec_drv_data *drv_data;
+	u16 range = simple_strtoul(buf, NULL, 10);
+
+	drv_data = hid_get_drvdata(hid);
+	if (!drv_data) {
+		hid_err(hid, "Private driver data not found!\n");
+		return -EINVAL;
+	}
+
+	if (range == 0)
+		range = MAX_RANGE;
+
+	/* Check if the wheel supports range setting
+	 * and that the range is within limits for the wheel */
+	if (range >= MIN_RANGE && range <= MAX_RANGE) {
+		ftec_set_range(hid, range);
+		drv_data->range = range;
+	}
+
+	return count;
+}
+static DEVICE_ATTR(range, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_range_show, ftec_range_store);
+
 
 static ssize_t ftec_set_display(struct device *dev, struct device_attribute *attr,
 				 const char *buf, size_t count)
@@ -428,6 +526,10 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 	ret = device_create_file(&hdev->dev, &dev_attr_display);
 	if (ret)
 		hid_warn(hdev, "Unable to create sysfs interface for \"display\", errno %d\n", ret);  /* Let the driver continue without display */
+	
+	ret = device_create_file(&hdev->dev, &dev_attr_range);
+	if (ret)
+		hid_warn(hdev, "Unable to create sysfs interface for \"range\", errno %d\n", ret);  /* Let the driver continue without display */
 
 #ifdef CONFIG_LEDS_CLASS
 	if (ftec_init_led(hdev))
@@ -448,6 +550,7 @@ static void ftec_remove(struct hid_device *hdev)
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hdev);
 
 	device_remove_file(&hdev->dev, &dev_attr_display);
+	device_remove_file(&hdev->dev, &dev_attr_range);
 #ifdef CONFIG_LEDS_CLASS
 	{
 		int j;
