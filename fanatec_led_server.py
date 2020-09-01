@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 import glob
 
-sysfs_base = glob.glob("/sys/module/hid_fanatecff/drivers/hid:ftec_csl_elite/0003:0EB7:0005.*")[0]
+sysfs_base = glob.glob("/sys/module/hid_ftec/drivers/hid:ftec_csl_elite/0003:0EB7:0005.*")[0]
 sysfs_rpm = "%s/leds/0003:0EB7:0005.%s::RPM"%(sysfs_base,sysfs_base.split(".")[-1])
 
 def set_leds(values):

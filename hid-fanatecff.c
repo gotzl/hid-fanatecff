@@ -1,31 +1,11 @@
 #include <linux/device.h>
 #include <linux/hid.h>
-#include <linux/module.h>
-#include <linux/random.h>
-#include <linux/sched.h>
-#include <linux/usb.h>
-#include <linux/wait.h>
 
 #include "usbhid/usbhid.h"
+#include "hid-fanatec.h"
 
-MODULE_LICENSE("GPL");
-MODULE_AUTHOR("gotzl");
-MODULE_DESCRIPTION("A driver for the Fanatec CSL Elite Wheel Base");
-
-#define LEDS 9
 #define MIN_RANGE 90
 #define MAX_RANGE 1080
-int hid_debug = 0;
-
-struct ftec_drv_data {
-	spinlock_t report_lock; /* Protect output HID report */
-	struct hid_report *report;
-	u16 range;
-#ifdef CONFIG_LEDS_CLASS
-	u16 led_state;
-	struct led_classdev *led[LEDS];
-#endif
-};
 
 /* This is realy weird... if i put a value >0x80 into the report,
    the actual value send to the device will be 0x7f. I suspect it has
@@ -364,7 +344,7 @@ static int ff_play_effect_memless(struct input_dev *dev, void *data, struct ff_e
 	return 0;	
 }
 
-int ftec_init_led(struct hid_device *hid) {
+static int ftec_init_led(struct hid_device *hid) {
 	struct led_classdev *led;
 	size_t name_sz;
 	char *name;
@@ -453,73 +433,18 @@ err_leds:
 	return 0;
 }
 
-int ftec_init(struct hid_device *hdev) {
+int ftecff_init(struct hid_device *hdev) {
     struct hid_input *hidinput = list_entry(hdev->inputs.next, struct hid_input, list);
     struct input_dev *inputdev = hidinput->input;
-	struct list_head *report_list = &hdev->report_enum[HID_OUTPUT_REPORT].report_list;
-	struct hid_report *report = list_entry(report_list->next, struct hid_report, list);	
-	struct ftec_drv_data *drv_data;
-
-	dbg_hid(" ... %i %i %i %i %i %i\n%i %i %i %i\n\n", 
-		report->id, report->type, report->application,
-		report->maxfield, report->size, report->maxfield,
-		report->field[0]->logical_minimum,report->field[0]->logical_maximum,
-		report->field[0]->physical_minimum,report->field[0]->physical_maximum
-		);
-
-	/* Check that the report looks ok */
-	if (!hid_validate_values(hdev, HID_OUTPUT_REPORT, 0, 0, 7))
-		return -1;
-
-	drv_data = hid_get_drvdata(hdev);
-	if (!drv_data) {
-		hid_err(hdev, "Cannot add device, private driver data not allocated\n");
-		return -1;
-	}
-
-	drv_data->report = report;
-	spin_lock_init(&drv_data->report_lock);
+	int ret;
 
     dbg_hid(" ... setting FF bits");
 	set_bit(FF_CONSTANT, inputdev->ffbit);
 
-	return input_ff_create_memless(inputdev, NULL, ff_play_effect_memless);
-}
-
-static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
-{
-	struct usb_interface *iface = to_usb_interface(hdev->dev.parent);
-	__u8 iface_num = iface->cur_altsetting->desc.bInterfaceNumber;
-	struct ftec_drv_data *drv_data;
-	unsigned int connect_mask = HID_CONNECT_DEFAULT;
-    int ret;
-
-	dbg_hid("%s: ifnum %d\n", __func__, iface_num);
-
-	drv_data = kzalloc(sizeof(struct ftec_drv_data), GFP_KERNEL);
-	if (!drv_data) {
-		hid_err(hdev, "Insufficient memory, cannot allocate driver data\n");
-		return -ENOMEM;
-	}	
-	hid_set_drvdata(hdev, (void *)drv_data);
-
-	ret = hid_parse(hdev);
+	ret = input_ff_create_memless(inputdev, NULL, ff_play_effect_memless);
 	if (ret) {
-		hid_err(hdev, "parse failed\n");
-		goto err_free;
-	}
-
-	connect_mask &= ~HID_CONNECT_FF;
-	ret = hid_hw_start(hdev, connect_mask);
-	if (ret) {
-		hid_err(hdev, "hw start failed\n");
-		goto err_free;
-	}
-
-	ret = ftec_init(hdev);
-	if (ret) {
-		hid_err(hdev, "hw init failed\n");
-		goto err_stop;
+		hid_err(hdev, "Unable to create ff memless: %i\n", ret);
+		return ret;
 	}
 
 	/* Create sysfs interface */
@@ -537,15 +462,10 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 #endif
 
 	return 0;
-
-err_stop:
-	hid_hw_stop(hdev);
-err_free:
-	kfree(drv_data);
-	return ret;
 }
 
-static void ftec_remove(struct hid_device *hdev)
+
+void ftecff_remove(struct hid_device *hdev)
 {
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hdev);
 
@@ -568,26 +488,4 @@ static void ftec_remove(struct hid_device *hdev)
 		}
 	}
 #endif
-
-	hid_hw_stop(hdev);
-	kfree(drv_data);
 }
-
-
-#define USB_VENDOR_ID 0x0eb7
-#define USB_DEVICE_ID 0x0005
-
-static const struct hid_device_id devices[] = {
-	{ HID_USB_DEVICE(USB_VENDOR_ID, USB_DEVICE_ID), .driver_data = 0 },
-	{ }
-};
-
-MODULE_DEVICE_TABLE(hid, devices);
-
-static struct hid_driver ftec_csl_elite = {
-		.name = "ftec_csl_elite",
-		.id_table = devices,
-        .probe = ftec_probe,
-        .remove = ftec_remove,        
-};
-module_hid_driver(ftec_csl_elite)
