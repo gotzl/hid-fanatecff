@@ -1,18 +1,21 @@
 #!/usr/bin/python3
 import glob
+from pydbus import SystemBus
 
-sysfs_base = glob.glob("/sys/module/hid_ftec/drivers/hid:ftec_csl_elite/0003:0EB7:0005.*")[0]
-sysfs_rpm = "%s/leds/0003:0EB7:0005.%s::RPM"%(sysfs_base,sysfs_base.split(".")[-1])
+bus = SystemBus()
+wheel = bus.get('org.fanatec.CSLElite', '/org/fanatec/CSLElite/Wheel')
 
 def set_leds(values):
-    list(map(lambda i: open('%s%i/brightness'%(sysfs_rpm, i[0] + 1),'w').write(i[1]), enumerate(values)))
+    global wheel
+    wheel.RPM = values
 
 def set_display(value):
-    open('%s/display'%sysfs_base,'w').write(str(value))
+    global wheel
+    wheel.Display = value
 
 # clear leds and display
 def clear():
-    set_leds(['0']*9)
+    set_leds([False]*9)
     set_display(-1)
 
 

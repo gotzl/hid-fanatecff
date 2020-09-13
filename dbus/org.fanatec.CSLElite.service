@@ -1,0 +1,3 @@
+[D-Bus Service]
+Name=org.fanatec.CSLElite
+Exec=/usr/bin/fanatec-input.py 

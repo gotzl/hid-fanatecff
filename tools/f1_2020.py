@@ -32,7 +32,7 @@ class F12020Client(threading.Thread):
                 rpm = int.from_bytes(data[car_telem_start+16:car_telem_start+18], byteorder="little")
                 suggestedGear = int(data[-1])
 
-                fanatec_led_server.set_leds(["0" if (rpm-5000)<i*1000 else "1" for i in range(9)])
+                fanatec_led_server.set_leds([False if (rpm-5000)<i*1000 else True for i in range(9)])
                 fanatec_led_server.set_display(speed)
                 # print(speed, rpm, gear)
             except:

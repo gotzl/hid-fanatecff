@@ -59,7 +59,7 @@ class AcClient(threading.Thread):
                 rpm = int(struct.unpack('<f', data[68:72])[0])
                 gear = int.from_bytes(data[76:80], byteorder='little')
                 
-                fanatec_led_server.set_leds(["0" if rpm<i*1000 else "1" for i in range(9)])
+                fanatec_led_server.set_leds([False if rpm<i*1000 else True for i in range(9)])
                 fanatec_led_server.set_display(speed_kmh)
                 # print(speed_kmh, rpm, gear)
                 
