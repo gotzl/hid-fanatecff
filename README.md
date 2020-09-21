@@ -8,7 +8,7 @@ make
 sudo make install
 ```
 
-This installs the kernel module `hid-ftec.ko` in the `misc` dir of the running kernel and puts `fanatec.rules` into `/etc/udev/rules.d`. This rules allows access to the device for `users` group and sets deadzone/fuzz to 0 so that any wheel input is detected immediately.
+This installs the kernel module `hid-fanatec.ko` in the `misc` dir of the running kernel and puts `fanatec.rules` into `/etc/udev/rules.d`. This rules allows access to the device for `users` group and sets deadzone/fuzz to 0 so that any wheel input is detected immediately.
 The driver should get loaded automatically when the wheel is plugged.
 
 ## Status

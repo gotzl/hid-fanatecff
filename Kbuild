@@ -1,3 +1,3 @@
-obj-m := hid-ftec.o 
-hid-ftec-y := hid-fanatec.o hid-fanatecff.o
+obj-m := hid-fanatec.o 
+hid-fanatec-y := hid-ftec.o hid-ftecff.o
 ccflags-y := -Idrivers/hid

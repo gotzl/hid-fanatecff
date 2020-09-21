@@ -4,7 +4,7 @@
 #include <linux/module.h>
 
 #include "usbhid/usbhid.h"
-#include "hid-fanatec.h"
+#include "hid-ftec.h"
 
 int hid_debug = 1;
 

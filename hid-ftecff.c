@@ -2,7 +2,7 @@
 #include <linux/hid.h>
 
 #include "usbhid/usbhid.h"
-#include "hid-fanatec.h"
+#include "hid-ftec.h"
 
 #define MIN_RANGE 90
 #define MAX_RANGE 1080
