@@ -18,5 +18,5 @@ install:
 	cp fanatec.rules /etc/udev/rules.d/99-fanatec.rules
 
 uninstall:
-	rm ${INSTALLDIR} && depmod -a
+	rm ${INSTALLDIR}/hid-fanatec.ko && depmod -a
 	rm /etc/udev/rules.d/99-fanatec.rules
