@@ -121,8 +121,8 @@ static int ftec_init(struct hid_device *hdev) {
 	struct hid_report *report = list_entry(report_list->next, struct hid_report, list);	
 	struct ftec_drv_data *drv_data;
 
-	dbg_hid(" ... %i %i %i %i %i %i\n%i %i %i %i\n\n", 
-		report->id, report->type, report->application,
+	dbg_hid(" ... %i %i %i %i %i\n%i %i %i %i\n\n", 
+		report->id, report->type, // report->application,
 		report->maxfield, report->size, report->maxfield,
 		report->field[0]->logical_minimum,report->field[0]->logical_maximum,
 		report->field[0]->physical_minimum,report->field[0]->physical_maximum
@@ -229,10 +229,12 @@ static void ftec_remove(struct hid_device *hdev)
 
 #define FANATEC_VENDOR_ID 0x0eb7
 
+#define CSL_ELITE_WHEELBASE_CLUBSPORT_V2_DEVICE_ID 0x0001
 #define CSL_ELITE_WHEELBASE_DEVICE_ID 0x0005
 #define CSL_ELITE_PEDALS_DEVICE_ID 0x6204
 
 static const struct hid_device_id devices[] = {
+	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_ELITE_WHEELBASE_CLUBSPORT_V2_DEVICE_ID), .driver_data = FTEC_FF | FTEC_LEDS},
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_ELITE_WHEELBASE_DEVICE_ID), .driver_data = FTEC_FF | FTEC_LEDS},
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_ELITE_PEDALS_DEVICE_ID), .driver_data = FTEC_PEDALS },
     { }
