@@ -1,4 +1,7 @@
-A linux kernel driver that aims to add support for the FANATEC CSL Elite Wheel Base.
+A linux kernel driver that aims to add support for the FANATEC CSL Elite Wheel Base, including PS4 edition.
+
+### Notes
+The FANATEC CSL Elite Wheelbase + PS4 edition is being reported as Fanatec_FANATEC_ClubSport_Wheel_Base_V2
 
 ## Installation
 Compile and install the driver
