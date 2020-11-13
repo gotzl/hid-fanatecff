@@ -139,6 +139,7 @@ static int ftec_init(struct hid_device *hdev) {
 	}
 
 	drv_data->report = report;
+	drv_data->hid = hdev;
 	spin_lock_init(&drv_data->report_lock);
 
     return 0;
