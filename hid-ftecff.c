@@ -110,8 +110,7 @@ static ssize_t ftec_range_show(struct device *dev, struct device_attribute *attr
 	return count;
 }
 
-/* Set range to user specified value, call appropriate function
- * according to the type of the wheel */
+/* Set range to user specified value */
 static ssize_t ftec_range_store(struct device *dev, struct device_attribute *attr,
 				 const char *buf, size_t count)
 {
@@ -433,6 +432,42 @@ err_leds:
 	return 0;
 }
 
+static int ftecff_init_spring_damper(struct hid_device *hid) {
+	struct ftec_drv_data *drv_data;
+	s32 *value;
+
+	drv_data = hid_get_drvdata(hid);
+	if (!drv_data) {
+		hid_err(hid, "Cannot add device, private driver data not allocated\n");
+		return -1;
+	}
+	// unset spring 
+	value = drv_data->report->field[0]->value;
+	value[0] = 0x11;
+	value[1] = 0x0b;
+	value[2] = 0x00;
+	value[3] = 0x00;
+	value[4] = 0x00;
+	value[5] = 0x00;
+	value[6] = 0x00;
+	fix_values(value);
+	hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
+
+	// unset damper
+	value = drv_data->report->field[0]->value;
+	value[0] = 0x11;
+	value[1] = 0x0c;
+	value[2] = 0x00;
+	value[3] = 0x00;
+	value[4] = 0x00;
+	value[5] = 0x00;
+	value[6] = 0x00;
+	fix_values(value);
+	hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
+
+	return 0;
+}
+
 int ftecff_init(struct hid_device *hdev) {
     struct hid_input *hidinput = list_entry(hdev->inputs.next, struct hid_input, list);
     struct input_dev *inputdev = hidinput->input;
@@ -446,6 +481,9 @@ int ftecff_init(struct hid_device *hdev) {
 		hid_err(hdev, "Unable to create ff memless: %i\n", ret);
 		return ret;
 	}
+
+	// unset spring/damper
+	ftecff_init_spring_damper(hdev);
 
 	/* Create sysfs interface */
 	ret = device_create_file(&hdev->dev, &dev_attr_display);
