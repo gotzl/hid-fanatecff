@@ -2,6 +2,10 @@
 SUBSYSTEMS=="usb", ATTRS{idVendor}=="0eb7", GROUP="users", MODE="0660"
 # remove deadzone/fuzz for csl elite pedals
 SUBSYSTEMS=="hid", KERNELS=="0003:0EB7:6204.????", RUN{program}+="/usr/bin/evdev-joystick --evdev $devnode --deadzone 0 --fuzz 0"
-# remove deadzone/fuzz for csl elite wheelbase
+## remove deadzone/fuzz for 
+# csl elite wheelbase
 SUBSYSTEMS=="hid", KERNELS=="0003:0EB7:0005.????", RUN{program}+="/usr/bin/evdev-joystick --evdev $devnode --axis 0 --deadzone 0 --fuzz 0"
+# clubsport v2.5
+SUBSYSTEMS=="hid", KERNELS=="0003:0EB7:0004.????", RUN{program}+="/usr/bin/evdev-joystick --evdev $devnode --axis 0 --deadzone 0 --fuzz 0"
+# clubsport v2
 SUBSYSTEMS=="hid", KERNELS=="0003:0EB7:0001.????", RUN{program}+="/usr/bin/evdev-joystick --evdev $devnode --axis 0 --deadzone 0 --fuzz 0"
