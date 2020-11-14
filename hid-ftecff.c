@@ -432,39 +432,60 @@ err_leds:
 	return 0;
 }
 
-static int ftecff_init_spring_damper(struct hid_device *hid) {
+static int ftecff_init_csv25(struct hid_device *hid) {
 	struct ftec_drv_data *drv_data;
 	s32 *value;
+	bool a=true, b=true, c=true, d=true;
 
 	drv_data = hid_get_drvdata(hid);
 	if (!drv_data) {
 		hid_err(hid, "Cannot add device, private driver data not allocated\n");
 		return -1;
 	}
-	// unset spring 
-	value = drv_data->report->field[0]->value;
-	value[0] = 0x11;
-	value[1] = 0x0b;
-	value[2] = 0x00;
-	value[3] = 0x00;
-	value[4] = 0x00;
-	value[5] = 0x00;
-	value[6] = 0x00;
-	fix_values(value);
-	hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
 
-	// unset damper
-	value = drv_data->report->field[0]->value;
-	value[0] = 0x11;
-	value[1] = 0x0c;
-	value[2] = 0x00;
-	value[3] = 0x00;
-	value[4] = 0x00;
-	value[5] = 0x00;
-	value[6] = 0x00;
-	fix_values(value);
-	hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
+    if (a) {
+		value = drv_data->report->field[0]->value;
+		value[0] = 0xf8;
+		value[1] = 0x09;
+		value[2] = 0x01;
+		value[3] = 0xa0;
+		value[4] = 0x01;
+		value[5] = 0x00;
+		value[6] = 0x00;
+		fix_values(value);
+		hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
+	}
 
+	if (b) {
+		value = drv_data->report->field[0]->value;
+		value[0] = 0xf8;
+		value[1] = 0x09;
+		value[2] = 0x01;
+		value[3] = 0x06;
+		value[4] = 0x00;
+		value[5] = 0x00;
+		value[6] = 0x00;
+		fix_values(value);
+		hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
+	}
+
+	if (c) {
+		ftec_set_range(hid, 840);
+		drv_data->range = 840;
+	}
+
+	if (d) {
+		value = drv_data->report->field[0]->value;
+		value[0] = 0xf8;
+		value[1] = 0x09;
+		value[2] = 0x01;
+		value[3] = 0x05;
+		value[4] = 0x00;
+		value[5] = 0x00;
+		value[6] = 0x00;
+		fix_values(value);
+		hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);	
+	}
 	return 0;
 }
 
@@ -482,8 +503,8 @@ int ftecff_init(struct hid_device *hdev) {
 		return ret;
 	}
 
-	// unset spring/damper
-	ftecff_init_spring_damper(hdev);
+	// init routine for clubsport v2.5
+	ftecff_init_csv25(hdev);
 
 	/* Create sysfs interface */
 	ret = device_create_file(&hdev->dev, &dev_attr_display);
