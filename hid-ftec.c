@@ -2,8 +2,8 @@
 #include <linux/usb.h>
 #include <linux/hid.h>
 #include <linux/module.h>
+#include <linux/input.h>
 
-#include "usbhid/usbhid.h"
 #include "hid-ftec.h"
 
 int hid_debug = 1;

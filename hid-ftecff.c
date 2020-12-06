@@ -1,7 +1,7 @@
 #include <linux/device.h>
 #include <linux/hid.h>
+#include <linux/input.h>
 
-#include "usbhid/usbhid.h"
 #include "hid-ftec.h"
 
 #define MIN_RANGE 90
