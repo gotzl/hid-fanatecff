@@ -10,7 +10,7 @@ int hid_debug = 1;
 
 #define FTEC_FF		        0x001
 #define FTEC_PEDALS     	0x002
-#define FTEC_LEDS     	    0x003
+#define FTEC_LEDS     	    0x004
 
 int ftecff_init(struct hid_device *hdev);
 void ftecff_remove(struct hid_device *hdev);
@@ -195,6 +195,13 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
     }
 
     if (drv_data->quirks & FTEC_PEDALS) {
+		struct hid_input *hidinput = list_entry(hdev->inputs.next, struct hid_input, list);
+		struct input_dev *inputdev = hidinput->input;
+
+		set_bit(EV_KEY, inputdev->evbit);
+		set_bit(BTN_WHEEL, inputdev->keybit);
+
+
         ftec_set_load(hdev, 4);
 
         ret = device_create_file(&hdev->dev, &dev_attr_load);
