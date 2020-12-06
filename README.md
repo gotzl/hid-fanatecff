@@ -1,7 +1,12 @@
 A linux kernel driver that aims to add support for the FANATEC CSL Elite Wheel Base, including PS4 edition.
 
 ### Notes
-The FANATEC CSL Elite Wheelbase + PS4 edition is being reported as Fanatec_FANATEC_ClubSport_Wheel_Base_V2
+The Wheel Base should be set to 'PC mode' for the driver to be selected (red LED). Known device IDs are
+* 0EB7:0E03 FANATEC CSL Elite Wheel Base
+* 0EB7:0005 FANATEC CSL Elite Wheel Base PS4
+* 0EB7:6204 FANATEC CSL Elite Pedals
+* (experimental: 0EB7:0001 FANATEC ClubSport Wheel Base V2)
+* (experimental: 0EB7:0004 FANATEC ClubSport Wheel Base V2.5)
 
 ## Installation
 Compile and install the driver
@@ -11,15 +16,8 @@ make
 sudo make install
 ```
 
-This installs the kernel module `hid-fanatec.ko` in the `misc` dir of the running kernel and puts `fanatec.rules` into `/etc/udev/rules.d`. This rules allows access to the device for `users` group and sets deadzone/fuzz to 0 so that any wheel input is detected immediately.
+This installs the kernel module `hid-fanatec.ko` in the `misc` dir of the running kernel and puts `fanatec.rules` into `/etc/udev/rules.d`. These rules allows access to the device for `users` group and sets deadzone/fuzz to 0 so that any wheel input is detected immediately.
 The driver should get loaded automatically when the wheel is plugged.
-
-### Ubuntu users 
-You might have to extract the kernel source
-`m@m:/usr/src/linux-source-4.15.0$ sudo tar vxjf linux-source-4.15.0.tar.bz2`
-
-Update Kbuild
-`ccflags-y := -Idrivers/hid -I /usr/src/linux-source-4.15.0/linux-source-4.15.0/drivers/hid/`
 
 ## Status
 - Some support for `FF_CONSTANT`, implemented somehow analogous to `hid-lgff`. This seems to be enough to get rudimentary force-feedback support in most games.

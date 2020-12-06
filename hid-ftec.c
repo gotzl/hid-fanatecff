@@ -10,7 +10,7 @@ int hid_debug = 1;
 
 #define FTEC_FF		        0x001
 #define FTEC_PEDALS     	0x002
-#define FTEC_LEDS     	    0x003
+#define FTEC_LEDS     	    0x004
 
 int ftecff_init(struct hid_device *hdev);
 void ftecff_remove(struct hid_device *hdev);
@@ -160,6 +160,12 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 		return -ENOMEM;
 	}
     drv_data->quirks = id->driver_data;
+	drv_data->min_range = 90;
+	drv_data->max_range = 1080;
+	if (hdev->product == CLUBSPORT_V2_WHEELBASE_DEVICE_ID || 
+			hdev->product == CLUBSPORT_V25_WHEELBASE_DEVICE_ID) {
+		drv_data->max_range = 900;
+	}	
 
 	hid_set_drvdata(hdev, (void *)drv_data);
 
@@ -226,16 +232,10 @@ static void ftec_remove(struct hid_device *hdev)
 	kfree(drv_data);
 }
 
-
-#define FANATEC_VENDOR_ID 0x0eb7
-
-#define CSL_ELITE_WHEELBASE_CLUBSPORT_V2_DEVICE_ID 0x0001
-#define CSL_ELITE_WHEELBASE_DEVICE_ID 0x0005
-#define CSL_ELITE_PEDALS_DEVICE_ID 0x6204
-
 static const struct hid_device_id devices[] = {
-	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_ELITE_WHEELBASE_CLUBSPORT_V2_DEVICE_ID), .driver_data = FTEC_FF | FTEC_LEDS},
+	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CLUBSPORT_V2_WHEELBASE_DEVICE_ID), .driver_data = FTEC_FF | FTEC_LEDS},
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_ELITE_WHEELBASE_DEVICE_ID), .driver_data = FTEC_FF | FTEC_LEDS},
+	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_ELITE_PS4_WHEELBASE_DEVICE_ID), .driver_data = FTEC_FF | FTEC_LEDS},
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_ELITE_PEDALS_DEVICE_ID), .driver_data = FTEC_PEDALS },
     { }
 };

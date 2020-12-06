@@ -1,11 +1,14 @@
 #include <linux/device.h>
 #include <linux/hid.h>
 #include <linux/input.h>
+#include <linux/moduleparam.h>
 
 #include "hid-ftec.h"
 
-#define MIN_RANGE 90
-#define MAX_RANGE 1080
+// parameter to set the initial range
+// if unset, the wheels max range is used
+int init_range = 0;
+module_param(init_range, int, 0);
 
 /* This is realy weird... if i put a value >0x80 into the report,
    the actual value send to the device will be 0x7f. I suspect it has
@@ -126,11 +129,11 @@ static ssize_t ftec_range_store(struct device *dev, struct device_attribute *att
 	}
 
 	if (range == 0)
-		range = MAX_RANGE;
+		range = drv_data->max_range;
 
 	/* Check if the wheel supports range setting
 	 * and that the range is within limits for the wheel */
-	if (range >= MIN_RANGE && range <= MAX_RANGE) {
+	if (range >= drv_data->min_range && range <= drv_data->max_range) {
 		ftec_set_range(hid, range);
 		drv_data->range = range;
 	}
@@ -436,6 +439,7 @@ err_leds:
 int ftecff_init(struct hid_device *hdev) {
     struct hid_input *hidinput = list_entry(hdev->inputs.next, struct hid_input, list);
     struct input_dev *inputdev = hidinput->input;
+	struct ftec_drv_data *drv_data = hid_get_drvdata(hdev);
 	int ret;
 
     dbg_hid(" ... setting FF bits");
@@ -446,6 +450,13 @@ int ftecff_init(struct hid_device *hdev) {
 		hid_err(hdev, "Unable to create ff memless: %i\n", ret);
 		return ret;
 	}
+
+	/* Set range so that centering spring gets disabled */
+	if (init_range > 0 && (init_range > drv_data->max_range || init_range < drv_data->min_range)) {
+		hid_warn(hdev, "Invalid init_range %i; using max range of %i instead\n", init_range, drv_data->max_range);
+		init_range = -1;
+	}
+	ftec_set_range(hdev, init_range > 0 ? init_range : drv_data->max_range);
 
 	/* Create sysfs interface */
 	ret = device_create_file(&hdev->dev, &dev_attr_display);
