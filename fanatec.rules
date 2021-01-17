@@ -11,3 +11,5 @@ SUBSYSTEMS=="hid", KERNELS=="0003:0EB7:0005.????", RUN{program}+="/usr/bin/evdev
 SUBSYSTEMS=="hid", KERNELS=="0003:0EB7:0001.????", RUN{program}+="/usr/bin/evdev-joystick --evdev $devnode --axis 0 --deadzone 0 --fuzz 0"
 # clubsport v2.5
 SUBSYSTEMS=="hid", KERNELS=="0003:0EB7:0004.????", RUN{program}+="/usr/bin/evdev-joystick --evdev $devnode --axis 0 --deadzone 0 --fuzz 0"
+# podium DD1
+SUBSYSTEMS=="hid", KERNELS=="0003:0EB7:0006.????", RUN{program}+="/usr/bin/evdev-joystick --evdev $devnode --axis 0 --deadzone 0 --fuzz 0" 
