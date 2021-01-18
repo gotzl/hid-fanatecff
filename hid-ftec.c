@@ -121,9 +121,9 @@ static int ftec_init(struct hid_device *hdev) {
 	struct hid_report *report = list_entry(report_list->next, struct hid_report, list);	
 	struct ftec_drv_data *drv_data;
 
-	dbg_hid(" ... %i %i %i %i %i\n%i %i %i %i\n\n", 
+	dbg_hid(" ... %i %i %i %i\n%i %i %i %i\n\n", 
 		report->id, report->type, // report->application,
-		report->maxfield, report->size, report->maxfield,
+		report->maxfield, report->size,
 		report->field[0]->logical_minimum,report->field[0]->logical_maximum,
 		report->field[0]->physical_minimum,report->field[0]->physical_maximum
 		);
@@ -200,6 +200,13 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
     }
 
     if (drv_data->quirks & FTEC_PEDALS) {
+		struct hid_input *hidinput = list_entry(hdev->inputs.next, struct hid_input, list);
+		struct input_dev *inputdev = hidinput->input;
+
+		// if these bits are not set, the pedals are not recognized in newer proton/wine verisons
+		set_bit(EV_KEY, inputdev->evbit);
+		set_bit(BTN_WHEEL, inputdev->keybit);
+
         ftec_set_load(hdev, 4);
 
         ret = device_create_file(&hdev->dev, &dev_attr_load);

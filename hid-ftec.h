@@ -10,6 +10,7 @@
 #define CSL_ELITE_PEDALS_DEVICE_ID 0x6204
 
 #define LEDS 9
+#define NUM_TUNING_SLOTS 5
 
 struct ftec_drv_data {
 	unsigned long quirks;

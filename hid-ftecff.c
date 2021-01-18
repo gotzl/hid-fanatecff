@@ -1,5 +1,6 @@
 #include <linux/device.h>
 #include <linux/hid.h>
+#include <linux/usb.h>
 #include <linux/input.h>
 #include <linux/moduleparam.h>
 
@@ -9,6 +10,20 @@
 // if unset, the wheels max range is used
 int init_range = 0;
 module_param(init_range, int, 0);
+
+
+#define FTEC_TUNING_REPORT_SIZE 64
+
+#define ADDR_SLOT 	0x02
+#define ADDR_SEN 	0x03
+#define ADDR_FF 	0x04
+#define ADDR_SHO 	0x05
+#define ADDR_BLI 	0x06											
+#define ADDR_DRI 	0x09
+#define ADDR_FOR 	0x0a
+#define ADDR_SPR 	0x0b
+#define ADDR_DPR 	0x0c
+#define ADDR_FEI 	0x11
 
 /* This is realy weird... if i put a value >0x80 into the report,
    the actual value send to the device will be 0x7f. I suspect it has
@@ -185,6 +200,178 @@ static ssize_t ftec_set_display(struct device *dev, struct device_attribute *att
 }
 static DEVICE_ATTR(display, S_IWUSR | S_IWGRP, NULL, ftec_set_display);
 
+static int ftec_tuning_read(struct hid_device *hid, u8 *buf) {
+	struct usb_device *dev = interface_to_usbdev(to_usb_interface(hid->dev.parent));
+	int ret, actual_len;
+    	
+	// request current values
+	buf[0] = 0xff;
+	buf[1] = 0x03;
+	buf[2] = 0x02;
+
+	ret = hid_hw_output_report(hid, buf, FTEC_TUNING_REPORT_SIZE);
+	if (ret < 0)
+		goto out;
+
+	// reset memory
+	memset((void*)buf, 0, FTEC_TUNING_REPORT_SIZE); 
+
+	// read values
+	ret = usb_interrupt_msg(dev, usb_rcvintpipe(dev, 81),
+				buf, FTEC_TUNING_REPORT_SIZE, &actual_len,
+				USB_CTRL_SET_TIMEOUT);
+out:
+	return ret;
+}
+
+static int ftec_tuning_write(struct hid_device *hid, int addr, int val) {
+	u8 *buf = kcalloc(FTEC_TUNING_REPORT_SIZE+1, sizeof(u8), GFP_KERNEL);
+	int ret;
+    	
+	// shift by 1 so that values are at correct location for write back
+	if (ftec_tuning_read(hid, buf+1) < 0)
+		goto out;
+
+	dbg_hid(" ... ftec_tuning_write %i; current: %i; new:%i\n", addr, buf[addr+1], val);
+
+	// update requested value and write back
+	buf[0] = 0xff;
+	buf[1] = 0x03;
+	buf[2] = 0x00;
+	buf[addr+1] = val;
+	ret = hid_hw_output_report(hid, buf, FTEC_TUNING_REPORT_SIZE);
+
+out:
+    kfree(buf);
+	return 0;
+}
+
+static int ftec_tuning_select(struct hid_device *hid, int slot) {
+	u8 *buf = kcalloc(FTEC_TUNING_REPORT_SIZE, sizeof(u8), GFP_KERNEL);
+    int ret;
+    	
+	if (ftec_tuning_read(hid, buf) < 0)
+		goto out;
+		
+	// return if already selected
+	if (buf[ADDR_SLOT] == slot || slot<=0 || slot>NUM_TUNING_SLOTS) {
+		dbg_hid(" ... ftec_tuning_select slot already selected or invalid value; current: %i; new:%i\n", buf[ADDR_SLOT], slot);
+		goto out;
+	}
+
+	dbg_hid(" ... ftec_tuning_select current: %i; new:%i\n", buf[ADDR_SLOT], slot);
+
+	// reset memory
+	memset((void*)buf, 0, FTEC_TUNING_REPORT_SIZE); 
+
+	buf[0] = 0xff;
+	buf[1] = 0x03;
+	buf[2] = 0x01;
+	buf[3] = slot&0xff;
+
+	ret = hid_hw_output_report(hid, buf, FTEC_TUNING_REPORT_SIZE);
+	if (ret < 0)
+		goto out;
+
+out:
+    kfree(buf);
+	return 0;
+}
+
+
+static int ftec_tuning_get_addr(struct device_attribute *attr) {
+	int type = 0;
+	if(strcmp(attr->attr.name, "SLOT") == 0)
+		type = ADDR_SLOT;
+	else if(strcmp(attr->attr.name, "SEN") == 0)
+		type = ADDR_SEN;
+	else if(strcmp(attr->attr.name, "FF") == 0)
+		type = ADDR_FF;
+	else if(strcmp(attr->attr.name, "DRI") == 0)
+		type = ADDR_DRI;
+	else if(strcmp(attr->attr.name, "FEI") == 0)
+		type = ADDR_FEI;
+	else if(strcmp(attr->attr.name, "FOR") == 0)
+		type = ADDR_FOR;
+	else if(strcmp(attr->attr.name, "SPR") == 0)
+		type = ADDR_SPR;
+	else if(strcmp(attr->attr.name, "DPR") == 0)
+		type = ADDR_DPR;
+	else if(strcmp(attr->attr.name, "BLI") == 0)
+		type = ADDR_BLI;												
+	else if(strcmp(attr->attr.name, "SHO") == 0)
+		type = ADDR_SHO;
+	else {
+		dbg_hid("Unknown attribute %s\n", attr->attr.name);
+	}
+	return type;
+}
+
+static ssize_t ftec_tuning_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct hid_device *hid = to_hid_device(dev);
+	u8 *buffer = kcalloc(FTEC_TUNING_REPORT_SIZE, sizeof(u8), GFP_KERNEL);
+	int addr = ftec_tuning_get_addr(attr);
+	size_t count = 0;
+	s8 value = 0;
+
+	dbg_hid(" ... ftec_tuning_show %s, %x\n", attr->attr.name, addr);
+
+	if (addr > 0 && ftec_tuning_read(hid, buffer) >= 0) {
+		memcpy((void*)&value, &buffer[addr], sizeof(s8));
+		count = scnprintf(buf, PAGE_SIZE, "%i\n", value);
+	}
+	kfree(buffer);
+	return count;
+}
+
+static ssize_t ftec_tuning_store(struct device *dev, struct device_attribute *attr,
+				 const char *buf, size_t count)
+{
+	struct hid_device *hid = to_hid_device(dev);
+	int addr;
+
+	s16 val = simple_strtol(buf, NULL, 10);
+	dbg_hid(" ... ftec_tuning_store %s %i\n", attr->attr.name, val);
+
+	addr = ftec_tuning_get_addr(attr);
+	if (addr == ADDR_SLOT) {
+		ftec_tuning_select(hid, val);
+	} else if (addr > 0) {
+		ftec_tuning_write(hid, addr, val);
+	}
+	return count;
+}
+
+static ssize_t ftec_tuning_reset(struct device *dev, struct device_attribute *attr,
+				 const char *buf, size_t count)
+{
+	struct hid_device *hid = to_hid_device(dev);
+	u8 *buffer = kcalloc(FTEC_TUNING_REPORT_SIZE, sizeof(u8), GFP_KERNEL);
+	int ret;
+    	
+	// request current values
+	buffer[0] = 0xff;
+	buffer[1] = 0x03;
+	buffer[2] = 0x04;
+
+	ret = hid_hw_output_report(hid, buffer, FTEC_TUNING_REPORT_SIZE);
+	
+	return count;
+}
+
+static DEVICE_ATTR(RESET, S_IWUSR  | S_IWGRP, NULL, ftec_tuning_reset);
+static DEVICE_ATTR(SLOT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_tuning_show, ftec_tuning_store);
+static DEVICE_ATTR(SEN, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_tuning_show, ftec_tuning_store);
+static DEVICE_ATTR(FF, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_tuning_show, ftec_tuning_store);
+static DEVICE_ATTR(DRI, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_tuning_show, ftec_tuning_store);
+static DEVICE_ATTR(FEI, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_tuning_show, ftec_tuning_store);
+static DEVICE_ATTR(FOR, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_tuning_show, ftec_tuning_store);
+static DEVICE_ATTR(SPR, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_tuning_show, ftec_tuning_store);
+static DEVICE_ATTR(DPR, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_tuning_show, ftec_tuning_store);
+static DEVICE_ATTR(BLI, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_tuning_show, ftec_tuning_store);
+static DEVICE_ATTR(SHO, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_tuning_show, ftec_tuning_store);
+
 
 #ifdef CONFIG_LEDS_CLASS
 static void ftec_set_leds(struct hid_device *hid, u16 leds)
@@ -195,7 +382,7 @@ static void ftec_set_leds(struct hid_device *hid, u16 leds)
 	u16 _leds = 0;
 	int i;
 
-	dbg_hid(" ... set_leds %04X\n", leds);
+	dbg_hid(" ... set_leds base %04X\n", leds);
 
 	drv_data = hid_get_drvdata(hid);
 	if (!drv_data) {
@@ -203,16 +390,29 @@ static void ftec_set_leds(struct hid_device *hid, u16 leds)
 		return;
 	}
 
+	value = drv_data->report->field[0]->value;
+
+	spin_lock_irqsave(&drv_data->report_lock, flags);
+	value[0] = 0xf8;
+	value[1] = 0x13;
+	value[2] = leds&0xff;
+	value[3] = 0x00;
+	value[4] = 0x00;
+	value[5] = 0x00;
+	value[6] = 0x00;
+	
+	fix_values(value);
+	hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
+
 	// reshuffle, since first led is highest bit
 	for( i=0; i<LEDS; i++) {
 		if (leds>>i & 1) _leds |= 1 << (LEDS-i-1);
 	}
 
-	dbg_hid(" ... set_leds actual %04X\n", _leds);
+	dbg_hid(" ... set_leds wheel %04X\n", _leds);
 
 	value = drv_data->report->field[0]->value;
 
-	spin_lock_irqsave(&drv_data->report_lock, flags);
 	value[0] = 0xf8;
 	value[1] = 0x09;
 	value[2] = 0x08;
@@ -367,29 +567,13 @@ static int ftec_init_led(struct hid_device *hid) {
 		value = drv_data->report->field[0]->value;
 
 		value[0] = 0xf8;
-		value[1] = 0x13;
-		value[2] = 0x00;
-		value[3] = 0x00;
-		value[4] = 0x00;
-		value[5] = 0x00;
-		value[6] = 0x00;
-		fix_values(value);
-		hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
-
-		value[1] = 0x14;
-		value[2] = 0xff;
-		fix_values(value);
-		hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
-
-		value[1] = 0x09;
-		value[2] = 0x02;		
-		value[3] = 0x01;
-		fix_values(value);
-		hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
-
 		value[1] = 0x09;
 		value[2] = 0x08;		
 		value[3] = 0x01;
+		value[4] = 0x00;
+		value[5] = 0x00;
+		value[6] = 0x00;
+
 		fix_values(value);
 		hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
 	}
@@ -459,13 +643,27 @@ int ftecff_init(struct hid_device *hdev) {
 	ftec_set_range(hdev, init_range > 0 ? init_range : drv_data->max_range);
 
 	/* Create sysfs interface */
-	ret = device_create_file(&hdev->dev, &dev_attr_display);
-	if (ret)
-		hid_warn(hdev, "Unable to create sysfs interface for \"display\", errno %d\n", ret);  /* Let the driver continue without display */
+#define CREATE_SYSFS_FILE(name) \
+	ret = device_create_file(&hdev->dev, &dev_attr_##name); \
+	if (ret) \
+		hid_warn(hdev, "Unable to create sysfs interface for '%s', errno %d\n", #name, ret); \
 	
-	ret = device_create_file(&hdev->dev, &dev_attr_range);
-	if (ret)
-		hid_warn(hdev, "Unable to create sysfs interface for \"range\", errno %d\n", ret);  /* Let the driver continue without display */
+	CREATE_SYSFS_FILE(display)
+	CREATE_SYSFS_FILE(range)
+
+	if (hdev->product == CSL_ELITE_WHEELBASE_DEVICE_ID || hdev->product == CSL_ELITE_PS4_WHEELBASE_DEVICE_ID) {
+		CREATE_SYSFS_FILE(RESET)
+		CREATE_SYSFS_FILE(SLOT)
+		CREATE_SYSFS_FILE(SEN)
+		CREATE_SYSFS_FILE(FF)
+		CREATE_SYSFS_FILE(DRI)
+		CREATE_SYSFS_FILE(FEI)
+		CREATE_SYSFS_FILE(FOR)
+		CREATE_SYSFS_FILE(SPR)
+		CREATE_SYSFS_FILE(DPR)
+		CREATE_SYSFS_FILE(BLI)
+		CREATE_SYSFS_FILE(SHO)
+	}
 
 #ifdef CONFIG_LEDS_CLASS
 	if (ftec_init_led(hdev))
@@ -482,6 +680,21 @@ void ftecff_remove(struct hid_device *hdev)
 
 	device_remove_file(&hdev->dev, &dev_attr_display);
 	device_remove_file(&hdev->dev, &dev_attr_range);
+
+	if (hdev->product == CSL_ELITE_WHEELBASE_DEVICE_ID || hdev->product == CSL_ELITE_PS4_WHEELBASE_DEVICE_ID) {
+		device_remove_file(&hdev->dev, &dev_attr_RESET);
+		device_remove_file(&hdev->dev, &dev_attr_SLOT);
+		device_remove_file(&hdev->dev, &dev_attr_SEN);
+		device_remove_file(&hdev->dev, &dev_attr_FF);
+		device_remove_file(&hdev->dev, &dev_attr_DRI);
+		device_remove_file(&hdev->dev, &dev_attr_FEI);
+		device_remove_file(&hdev->dev, &dev_attr_FOR);
+		device_remove_file(&hdev->dev, &dev_attr_SPR);
+		device_remove_file(&hdev->dev, &dev_attr_DPR);
+		device_remove_file(&hdev->dev, &dev_attr_BLI);
+		device_remove_file(&hdev->dev, &dev_attr_SHO);
+	}
+
 #ifdef CONFIG_LEDS_CLASS
 	{
 		int j;
