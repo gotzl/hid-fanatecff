@@ -2,8 +2,8 @@
 #include <linux/usb.h>
 #include <linux/hid.h>
 #include <linux/module.h>
+#include <linux/input.h>
 
-#include "usbhid/usbhid.h"
 #include "hid-ftec.h"
 
 int hid_debug = 1;
@@ -121,9 +121,9 @@ static int ftec_init(struct hid_device *hdev) {
 	struct hid_report *report = list_entry(report_list->next, struct hid_report, list);	
 	struct ftec_drv_data *drv_data;
 
-	dbg_hid(" ... %i %i %i %i %i %i\n%i %i %i %i\n\n", 
-		report->id, report->type, report->application,
-		report->maxfield, report->size, report->maxfield,
+	dbg_hid(" ... %i %i %i %i\n%i %i %i %i\n\n", 
+		report->id, report->type, // report->application,
+		report->maxfield, report->size,
 		report->field[0]->logical_minimum,report->field[0]->logical_maximum,
 		report->field[0]->physical_minimum,report->field[0]->physical_maximum
 		);
@@ -161,6 +161,12 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 		return -ENOMEM;
 	}
     drv_data->quirks = id->driver_data;
+	drv_data->min_range = 90;
+	drv_data->max_range = 1080;
+	if (hdev->product == CLUBSPORT_V2_WHEELBASE_DEVICE_ID || 
+			hdev->product == CLUBSPORT_V25_WHEELBASE_DEVICE_ID) {
+		drv_data->max_range = 900;
+	}	
 
 	hid_set_drvdata(hdev, (void *)drv_data);
 
@@ -195,11 +201,12 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
     }
 
     if (drv_data->quirks & FTEC_PEDALS) {
-		struct hid_input *hidinput = list_entry(hdev->inputs.next, struct hid_input, list);
-		struct input_dev *inputdev = hidinput->input;
+	struct hid_input *hidinput = list_entry(hdev->inputs.next, struct hid_input, list);
+	struct input_dev *inputdev = hidinput->input;
 
-		set_bit(EV_KEY, inputdev->evbit);
-		set_bit(BTN_WHEEL, inputdev->keybit);
+	// if these bits are not set, the pedals are not recognized in newer proton/wine verisons
+	set_bit(EV_KEY, inputdev->evbit);
+	set_bit(BTN_WHEEL, inputdev->keybit);
 
 
         ftec_set_load(hdev, 4);
@@ -234,15 +241,12 @@ static void ftec_remove(struct hid_device *hdev)
 	kfree(drv_data);
 }
 
-
-#define FANATEC_VENDOR_ID 0x0eb7
-
-#define CSL_ELITE_WHEELBASE_DEVICE_ID 0x0005
-#define CSL_ELITE_PEDALS_DEVICE_ID 0x6204
-
 static const struct hid_device_id devices[] = {
+	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CLUBSPORT_V2_WHEELBASE_DEVICE_ID), .driver_data = FTEC_FF | FTEC_LEDS},
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_ELITE_WHEELBASE_DEVICE_ID), .driver_data = FTEC_FF | FTEC_LEDS},
+	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_ELITE_PS4_WHEELBASE_DEVICE_ID), .driver_data = FTEC_FF | FTEC_LEDS},
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_ELITE_PEDALS_DEVICE_ID), .driver_data = FTEC_PEDALS },
+	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, PODIUM_WHEELBASE_DD1_DEVICE_ID), .driver_data = FTEC_FF | FTEC_LEDS },
     { }
 };
 

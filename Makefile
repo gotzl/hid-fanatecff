@@ -1,22 +1,27 @@
-KVERSION := `uname -r`
-KDIR := /lib/modules/${KVERSION}/build
-
-ifeq ($(shell lsb_release -a 2> /dev/null | grep Distributor | awk '{ print $$3 }'),Ubuntu)
-	INSTALLDIR := /lib/modules/${KVERSION}/kernel/drivers/misc/
-else
-	INSTALLDIR := /lib/modules/${KVERSION}/misc/
-endif
+KVERSION ?= `uname -r`
+KDIR ?= /lib/modules/${KVERSION}/build
+MODULEDIR ?= /lib/modules/${KVERSION}/kernel/drivers/hid
 
 default:
+	@echo -e "\n::\033[32m Compiling Fanatec kernel module\033[0m"
+	@echo "========================================"
 	$(MAKE) -C $(KDIR) M=$$PWD
 
 clean:
+	@echo -e "\n::\033[32m Cleaning Fanatec kernel module\033[0m"
+	@echo "========================================"
 	$(MAKE) -C $(KDIR) M=$$PWD clean
 
 install:
-	cp hid-fanatec.ko ${INSTALLDIR} && depmod -a
-	cp fanatec.rules /etc/udev/rules.d/99-fanatec.rules
+	@echo -e "\n::\033[34m Installing Fanatec kernel module/udev rule\033[0m"
+	@echo "====================================================="
+	@cp -v hid-fanatec.ko ${MODULEDIR}
+	@cp -v fanatec.rules /etc/udev/rules.d/99-fanatec.rules
+	depmod
 
 uninstall:
-	rm ${INSTALLDIR}/hid-fanatec.ko && depmod -a
-	rm /etc/udev/rules.d/99-fanatec.rules
+	@echo -e "\n::\033[34m Uninstalling Fanatec kernel module/udev rule\033[0m"
+	@echo "====================================================="
+	@rm -fv ${MODULEDIR}/hid-fanatec.ko
+	@rm -fv /etc/udev/rules.d/99-fanatec.rules
+	depmod
