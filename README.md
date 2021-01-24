@@ -23,10 +23,15 @@ The driver should get loaded automatically when the wheel is plugged.
 ## Status
 ### General
 Support for a bunch of effects, mostly copy-pasted from https://github.com/berarma/new-lg4ff. _Note:_ only tested with CSL Elite Wheelbase.
+Currently not supported effects: FF_FRICTION, FF_INERTIA
 
 ### Device specific
 Advanced functions of wheels/bases are available via sysfs. Base sysfs path:
 `/sys/module/hid_fanatec/drivers/hid:ftec_csl_elite/0003:0EB7:0005.*/`
+
+#### Common:
+- set/get range: echo number in degrees to `range`
+- get id of mounted wheel: `wheel_id`
 
 #### CSL Elite Base:
 - RPM LEDs: `leds/0003:0EB7:0005.*::RPMx/brightness` (x from 1 to 9)

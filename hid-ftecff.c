@@ -43,6 +43,7 @@ module_param(profile, int, 0660);
 MODULE_PARM_DESC(profile, "Enable profile debug messages.");
 
 #define FTEC_TUNING_REPORT_SIZE 64
+#define FTEC_WHEEL_REPORT_SIZE 34
 
 #define ADDR_SLOT 	0x02
 #define ADDR_SEN 	0x03
@@ -199,6 +200,54 @@ static ssize_t ftec_range_store(struct device *dev, struct device_attribute *att
 	return count;
 }
 static DEVICE_ATTR(range, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_range_show, ftec_range_store);
+
+
+/* Export the current wheel id */
+static ssize_t ftec_wheel_show(struct device *dev, struct device_attribute *attr,
+				char *buf)
+{
+	struct hid_device *hid = to_hid_device(dev);
+	struct usb_device *udev = interface_to_usbdev(to_usb_interface(hid->dev.parent));
+	u8 *buffer = kcalloc(FTEC_WHEEL_REPORT_SIZE, sizeof(u8), GFP_KERNEL);
+	size_t count = 0;
+	int ret, actual_len;
+	u16 wheel_id;
+    	
+	// request current values
+	buffer[0] = 0x01;
+	buffer[1] = 0xf8;
+	buffer[2] = 0x09;
+	buffer[3] = 0x01;
+	buffer[4] = 0x06;
+
+	ret = hid_hw_output_report(hid, buffer, 8);
+	if (ret < 0) {
+		kfree(buffer);
+		return count;
+	}
+
+	// FXIME: again ... (values only update 2nd time?)
+	ret = hid_hw_output_report(hid, buffer, 8);
+	if (ret < 0) {
+		kfree(buffer);
+		return count;
+	}
+
+	// reset memory
+	memset((void*)buffer, 0, FTEC_WHEEL_REPORT_SIZE); 
+
+	// read values
+	ret = usb_interrupt_msg(udev, usb_rcvintpipe(udev, 81),
+				buffer, FTEC_WHEEL_REPORT_SIZE, &actual_len,
+				USB_CTRL_SET_TIMEOUT);
+
+	memcpy((void*)&wheel_id, &buffer[0x1e], sizeof(u16));
+	kfree(buffer);
+
+	count = scnprintf(buf, PAGE_SIZE, "0x%04x\n", wheel_id);
+	return count;
+}
+static DEVICE_ATTR(wheel_id, S_IRUSR | S_IRGRP | S_IROTH, ftec_wheel_show, NULL);
 
 
 static ssize_t ftec_set_display(struct device *dev, struct device_attribute *attr,
@@ -1116,7 +1165,8 @@ int ftecff_init(struct hid_device *hdev) {
 		hid_warn(hdev, "Invalid init_range %i; using max range of %i instead\n", init_range, drv_data->max_range);
 		init_range = -1;
 	}
-	ftec_set_range(hdev, init_range > 0 ? init_range : drv_data->max_range);
+	drv_data->range = init_range > 0 ? init_range : drv_data->max_range;
+	ftec_set_range(hdev, drv_data->range);
 
 	/* Create sysfs interface */
 #define CREATE_SYSFS_FILE(name) \
@@ -1126,6 +1176,8 @@ int ftecff_init(struct hid_device *hdev) {
 	
 	CREATE_SYSFS_FILE(display)
 	CREATE_SYSFS_FILE(range)
+	CREATE_SYSFS_FILE(wheel_id)
+	
 
 	if (hdev->product == CSL_ELITE_WHEELBASE_DEVICE_ID || hdev->product == CSL_ELITE_PS4_WHEELBASE_DEVICE_ID) {
 		CREATE_SYSFS_FILE(RESET)
@@ -1168,6 +1220,7 @@ void ftecff_remove(struct hid_device *hdev)
 
 	device_remove_file(&hdev->dev, &dev_attr_display);
 	device_remove_file(&hdev->dev, &dev_attr_range);
+	device_remove_file(&hdev->dev, &dev_attr_wheel_id);
 
 	if (hdev->product == CSL_ELITE_WHEELBASE_DEVICE_ID || hdev->product == CSL_ELITE_PS4_WHEELBASE_DEVICE_ID) {
 		device_remove_file(&hdev->dev, &dev_attr_RESET);
