@@ -12,6 +12,10 @@ int hid_debug = 1;
 #define FTEC_PEDALS     	0x002
 #define FTEC_LEDS     	    0x004
 
+// adjustabel initial value for break load cell
+int init_load = 4;
+module_param(init_load, int, 0);
+
 int ftecff_init(struct hid_device *hdev);
 void ftecff_remove(struct hid_device *hdev);
 
@@ -80,6 +84,35 @@ static void ftec_set_load(struct hid_device *hid, u8 val)
 	spin_unlock_irqrestore(&drv_data->report_lock, flags);
 }
 
+static void ftec_set_rumble(struct hid_device *hid, u32 val)
+{
+	struct ftec_drv_data *drv_data;
+	unsigned long flags;
+	s32 *value;
+
+	dbg_hid(" ... set_rumble %02X\n", val);
+
+	drv_data = hid_get_drvdata(hid);
+	if (!drv_data) {
+		hid_err(hid, "Private driver data not found!\n");
+		return;
+	}
+
+	value = drv_data->report->field[0]->value;
+
+	spin_lock_irqsave(&drv_data->report_lock, flags);
+	value[0] = 0xf8;
+	value[1] = 0x09;
+	value[2] = 0x01;
+	value[3] = 0x04;
+	value[4] = (val>>16)&0xff;
+	value[5] = (val>>8)&0xff;
+	value[6] = (val)&0xff;
+	
+	hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
+	spin_unlock_irqrestore(&drv_data->report_lock, flags);
+}
+
 static ssize_t ftec_load_show(struct device *dev, struct device_attribute *attr,
 				char *buf)
 {
@@ -101,20 +134,21 @@ static ssize_t ftec_load_store(struct device *dev, struct device_attribute *attr
 				 const char *buf, size_t count)
 {
 	struct hid_device *hid = to_hid_device(dev);
-	struct ftec_drv_data *drv_data;
 	u8 load = simple_strtoul(buf, NULL, 10);
-
-	drv_data = hid_get_drvdata(hid);
-	if (!drv_data) {
-		hid_err(hid, "Private driver data not found!\n");
-		return -EINVAL;
-	}
-
 	ftec_set_load(hid, load);
 	return count;
 }
 static DEVICE_ATTR(load, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_load_show, ftec_load_store);
 
+static ssize_t ftec_rumble_store(struct device *dev, struct device_attribute *attr,
+				 const char *buf, size_t count)
+{
+	struct hid_device *hid = to_hid_device(dev);
+	u32 rumble = simple_strtoul(buf, NULL, 10);
+	ftec_set_rumble(hid, rumble);
+	return count;
+}
+static DEVICE_ATTR(rumble, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, NULL, ftec_rumble_store);
 
 static int ftec_init(struct hid_device *hdev) {
 	struct list_head *report_list = &hdev->report_enum[HID_OUTPUT_REPORT].report_list;
@@ -201,19 +235,26 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
     }
 
     if (drv_data->quirks & FTEC_PEDALS) {
-	struct hid_input *hidinput = list_entry(hdev->inputs.next, struct hid_input, list);
-	struct input_dev *inputdev = hidinput->input;
+		struct hid_input *hidinput = list_entry(hdev->inputs.next, struct hid_input, list);
+		struct input_dev *inputdev = hidinput->input;
 
-	// if these bits are not set, the pedals are not recognized in newer proton/wine verisons
-	set_bit(EV_KEY, inputdev->evbit);
-	set_bit(BTN_WHEEL, inputdev->keybit);
+		// if these bits are not set, the pedals are not recognized in newer proton/wine verisons
+		set_bit(EV_KEY, inputdev->evbit);
+		set_bit(BTN_WHEEL, inputdev->keybit);
 
-
-        ftec_set_load(hdev, 4);
+		if (init_load >= 0 && init_load < 10) {
+			ftec_set_load(hdev, init_load);
+		}
 
         ret = device_create_file(&hdev->dev, &dev_attr_load);
         if (ret)
             hid_warn(hdev, "Unable to create sysfs interface for \"load\", errno %d\n", ret);
+
+		if (hdev->product == CLUBSPORT_PEDALS_V3_DEVICE_ID) {
+			ret = device_create_file(&hdev->dev, &dev_attr_rumble);
+			if (ret)
+				hid_warn(hdev, "Unable to create sysfs interface for \"rumble\", errno %d\n", ret);
+		}
     }
 
     return 0;
@@ -231,6 +272,9 @@ static void ftec_remove(struct hid_device *hdev)
     
     if (drv_data->quirks & FTEC_PEDALS) {
         device_remove_file(&hdev->dev, &dev_attr_load);
+		if (hdev->product == CLUBSPORT_PEDALS_V3_DEVICE_ID) {
+			device_remove_file(&hdev->dev, &dev_attr_rumble);
+		}
     }
 
     if (drv_data->quirks & FTEC_FF) {
@@ -243,6 +287,7 @@ static void ftec_remove(struct hid_device *hdev)
 
 static const struct hid_device_id devices[] = {
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CLUBSPORT_V2_WHEELBASE_DEVICE_ID), .driver_data = FTEC_FF | FTEC_LEDS},
+	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CLUBSPORT_PEDALS_V3_DEVICE_ID), .driver_data = FTEC_PEDALS },
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_ELITE_WHEELBASE_DEVICE_ID), .driver_data = FTEC_FF | FTEC_LEDS},
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_ELITE_PS4_WHEELBASE_DEVICE_ID), .driver_data = FTEC_FF | FTEC_LEDS},
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_ELITE_PEDALS_DEVICE_ID), .driver_data = FTEC_PEDALS },
