@@ -78,7 +78,7 @@ static const signed short ftecff_wheel_effects[] = {
 static void fix_values(s32 *values) {
 	int i;
 	for(i=0;i<7;i++) {
-		if (values[i]>0x80) 
+		if (values[i]>=0x80)
 			values[i] = -0x100 + values[i];
 	}
 }

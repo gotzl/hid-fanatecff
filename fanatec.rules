@@ -1,15 +1,12 @@
-# all fanatec devices may be accessed by group users
-SUBSYSTEMS=="usb", ATTRS{idVendor}=="0eb7", GROUP="users", MODE="0660"
-# remove deadzone/fuzz for csl elite pedals
-SUBSYSTEMS=="hid", KERNELS=="0003:0EB7:6204.????", RUN{program}+="/usr/bin/evdev-joystick --evdev $devnode --deadzone 0 --fuzz 0"
-## remove deadzone/fuzz for
-# csl elite wheelbase
-SUBSYSTEMS=="hid", KERNELS=="0003:0EB7:0E03.????", RUN{program}+="/usr/bin/evdev-joystick --evdev $devnode --axis 0 --deadzone 0 --fuzz 0"
-# csl elite wheelbase PS4
-SUBSYSTEMS=="hid", KERNELS=="0003:0EB7:0005.????", RUN{program}+="/usr/bin/evdev-joystick --evdev $devnode --axis 0 --deadzone 0 --fuzz 0"
-# clubsport v2
-SUBSYSTEMS=="hid", KERNELS=="0003:0EB7:0001.????", RUN{program}+="/usr/bin/evdev-joystick --evdev $devnode --axis 0 --deadzone 0 --fuzz 0"
-# clubsport v2.5
-SUBSYSTEMS=="hid", KERNELS=="0003:0EB7:0004.????", RUN{program}+="/usr/bin/evdev-joystick --evdev $devnode --axis 0 --deadzone 0 --fuzz 0"
-# podium DD1
-SUBSYSTEMS=="hid", KERNELS=="0003:0EB7:0006.????", RUN{program}+="/usr/bin/evdev-joystick --evdev $devnode --axis 0 --deadzone 0 --fuzz 0" 
+ACTION!="add", GOTO="fanatec_end"
+SUBSYSTEMS=="usb|input|hid", ATTRS{idVendor}=="0eb7", GOTO="fanatec_vendor"
+GOTO="fanatec_end"
+
+LABEL="fanatec_vendor"
+
+# remove deadzone/fuzz
+ATTRS{idProduct}=="0001|0004|0005|0006|6204|0E03",  ATTRS{idVendor}=="0eb7", RUN{program}+="/usr/bin/evdev-joystick --evdev $devnode --deadzone 0 --fuzz 0"
+# set access rights
+SUBSYSTEM=="usb|input|hid", GROUP:="plugdev"
+
+LABEL="fanatec_end"
