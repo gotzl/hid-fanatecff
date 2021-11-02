@@ -8,6 +8,7 @@ The Wheel Base should be set to 'PC mode' for the driver to be selected (CSL Eli
 * (experimental: 0EB7:0001 FANATEC ClubSport Wheel Base V2)
 * (experimental: 0EB7:0004 FANATEC ClubSport Wheel Base V2.5)
 * (experimental: 0EB7:0006 Podium Wheel Base DD1)
+* (experimental: 0EB7:0020 CSL DD Wheel Base)
 
 ## Installation
 Compile and install the driver

@@ -265,7 +265,7 @@ static ssize_t ftec_set_display(struct device *dev, struct device_attribute *att
 		return -EINVAL;
 	}
 
-	dbg_hid(" ... set_display %i\n", val);
+	// dbg_hid(" ... set_display %i\n", val);
 	
 	value = drv_data->report->field[0]->value;
 
@@ -474,7 +474,7 @@ static void ftec_set_leds(struct hid_device *hid, u16 leds)
 	u16 _leds = 0;
 	int i;
 
-	dbg_hid(" ... set_leds base %04X\n", leds);
+	// dbg_hid(" ... set_leds base %04X\n", leds);
 
 	drv_data = hid_get_drvdata(hid);
 	if (!drv_data) {
@@ -501,7 +501,7 @@ static void ftec_set_leds(struct hid_device *hid, u16 leds)
 		if (leds>>i & 1) _leds |= 1 << (LEDS-i-1);
 	}
 
-	dbg_hid(" ... set_leds wheel %04X\n", _leds);
+	// dbg_hid(" ... set_leds wheel %04X\n", _leds);
 
 	value = drv_data->report->field[0]->value;
 
