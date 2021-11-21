@@ -198,7 +198,8 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 	drv_data->min_range = 90;
 	drv_data->max_range = 1080;
 	if (hdev->product == CLUBSPORT_V2_WHEELBASE_DEVICE_ID || 
-			hdev->product == CLUBSPORT_V25_WHEELBASE_DEVICE_ID) {
+			hdev->product == CLUBSPORT_V25_WHEELBASE_DEVICE_ID ||
+				hdev->product == CSR_ELITE_WHEELBASE_DEVICE_ID) {
 		drv_data->max_range = 900;
 	}	
 
