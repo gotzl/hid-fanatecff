@@ -34,9 +34,9 @@ module_param(init_range, int, 0);
 #define JIFFIES2MS(jiffies) ((jiffies) * 1000 / HZ)
 
 static int timer_msecs = DEFAULT_TIMER_PERIOD;
-static int spring_level = 30;
-static int damper_level = 30;
-static int friction_level = 30;
+static int spring_level = 100;
+static int damper_level = 100;
+static int friction_level = 100;
 
 static int profile = 1;
 module_param(profile, int, 0660);
@@ -644,18 +644,14 @@ err_leds:
 
 void ftecff_send_cmd(struct ftec_drv_data *drv_data, u8 *cmd)
 {
+	unsigned short i;
 	unsigned long flags;
 	s32 *value = drv_data->report->field[0]->value;
 
 	spin_lock_irqsave(&drv_data->report_lock, flags);
 
-	value[0] = cmd[0];
-	value[1] = cmd[1];
-	value[2] = cmd[2];
-	value[3] = cmd[3];
-	value[4] = cmd[4];
-	value[5] = cmd[5];
-	value[6] = cmd[6];
+	for(i = 0; i < 7; i++)
+		value[i] = cmd[i];
 	fix_values(value);
 
 	hid_hw_request(drv_data->hid, drv_data->report, HID_REQ_SET_REPORT);
@@ -736,6 +732,7 @@ static __always_inline void ftecff_update_state(struct ftecff_effect_state *stat
 void ftecff_update_slot(struct ftecff_slot *slot, struct ftecff_effect_parameters *parameters)
 {
 	u8 original_cmd[7];
+	unsigned short i;
 	int d1;
 	int d2;
 	int s1;
@@ -743,21 +740,21 @@ void ftecff_update_slot(struct ftecff_slot *slot, struct ftecff_effect_parameter
 
 	memcpy(original_cmd, slot->current_cmd, sizeof(original_cmd));
 
-	slot->current_cmd[0] = 0;
-	slot->current_cmd[1] = 0;
-	slot->current_cmd[2] = 0;
-	slot->current_cmd[3] = 0;
-	slot->current_cmd[4] = 0;
-	slot->current_cmd[5] = 0;
-	slot->current_cmd[6] = 0;
+	// select slot
+	slot->current_cmd[0] = (slot->id<<4) | 0x1;
 
-	if (slot->effect_type == FF_CONSTANT && parameters->level == 0) {
-		slot->current_cmd[0] = 0x03;
-		slot->current_cmd[1] = 0x08;
+	// set params to zero
+	for(i = 2; i < 7; i++)
+		slot->current_cmd[i] = 0;
 
-	} else if (slot->effect_type != FF_CONSTANT && parameters->clip == 0) {
-		slot->current_cmd[0] = 0x13;
-		slot->current_cmd[1] = slot->effect_type == FF_SPRING ? 0x0b : 0x0c;
+	if ((slot->effect_type == FF_CONSTANT && parameters->level == 0) ||
+			(slot->effect_type != FF_CONSTANT && parameters->clip == 0)) {
+		// disable slot
+		slot->current_cmd[0] |= 0x2;
+		if (original_cmd[0] != slot->current_cmd[0])
+			slot->is_updated = 1;
+		return;
+	}
 
 #define CLAMP_VALUE_U16(x) ((unsigned short)((x) > 0xffff ? 0xffff : (x)))
 #define CLAMP_VALUE_S16(x) ((unsigned short)((x) <= -0x8000 ? -0x8000 : ((x) > 0x7fff ? 0x7fff : (x))))
@@ -765,52 +762,57 @@ void ftecff_update_slot(struct ftecff_slot *slot, struct ftecff_effect_parameter
 #define SCALE_COEFF(x, bits) SCALE_VALUE_U16(abs(x) * 2, bits)
 #define SCALE_VALUE_U16(x, bits) (CLAMP_VALUE_U16(x) >> (16 - bits))
 
-	} else {
-		switch (slot->effect_type) {
-			case FF_CONSTANT:				
-				slot->current_cmd[0] = 0x01;
-				slot->current_cmd[1] = 0x08;
-				slot->current_cmd[2] = TRANSLATE_FORCE(parameters->level);			
-				break;
-			case FF_SPRING:
-				d1 = SCALE_VALUE_U16(((parameters->d1) + 0x8000) & 0xffff, 11);
-				d2 = SCALE_VALUE_U16(((parameters->d2) + 0x8000) & 0xffff, 11);
-				s1 = parameters->k1 < 0;
-				s2 = parameters->k2 < 0;
-				slot->current_cmd[0] = 0x11;
-				slot->current_cmd[1] = 0x0b;
-				slot->current_cmd[2] = d1 >> 3;
-				slot->current_cmd[3] = d2 >> 3;
-				slot->current_cmd[4] = (SCALE_COEFF(parameters->k2, 4) << 4) + SCALE_COEFF(parameters->k1, 4);
-				// slot->current_cmd[5] = ((d2 & 7) << 5) + ((d1 & 7) << 1) + (s2 << 4) + s1;
-				slot->current_cmd[6] = SCALE_VALUE_U16(parameters->clip, 8);
-				break;
-			case FF_DAMPER:
-				s1 = parameters->k1 < 0;
-				s2 = parameters->k2 < 0;
-				slot->current_cmd[0] = 0x11;
-				slot->current_cmd[1] = 0x0c;
-				slot->current_cmd[2] = SCALE_COEFF(parameters->k1, 4);
-				// slot->current_cmd[3] = s1;
-				slot->current_cmd[4] = SCALE_COEFF(parameters->k2, 4);
-				// slot->current_cmd[5] = s2;
-				slot->current_cmd[6] = SCALE_VALUE_U16(parameters->clip, 8);
-				break;
-			case FF_FRICTION:
-				// s1 = parameters->k1 < 0;
-				// s2 = parameters->k2 < 0;
-				// slot->current_cmd[1] = 0x0e;
-				// slot->current_cmd[2] = SCALE_COEFF(parameters->k1, 8);
-				// slot->current_cmd[3] = SCALE_COEFF(parameters->k2, 8);
-				// slot->current_cmd[4] = SCALE_VALUE_U16(parameters->clip, 8);
-				// slot->current_cmd[5] = (s2 << 4) + s1;
-				// slot->current_cmd[6] = 0;
-				break;
-		}
+	switch (slot->effect_type) {
+		case FF_CONSTANT:
+			slot->current_cmd[2] = TRANSLATE_FORCE(parameters->level);
+			break;
+		case FF_SPRING:
+			d1 = SCALE_VALUE_U16(((parameters->d1) + 0x8000) & 0xffff, 11);
+			d2 = SCALE_VALUE_U16(((parameters->d2) + 0x8000) & 0xffff, 11);
+			s1 = parameters->k1 < 0;
+			s2 = parameters->k2 < 0;
+			slot->current_cmd[2] = d1 >> 3;
+			slot->current_cmd[3] = d2 >> 3;
+			slot->current_cmd[4] = (SCALE_COEFF(parameters->k2, 4) << 4) + SCALE_COEFF(parameters->k1, 4);
+			// slot->current_cmd[5] = ((d2 & 7) << 5) + ((d1 & 7) << 1) + (s2 << 4) + s1;
+			slot->current_cmd[6] = SCALE_VALUE_U16(parameters->clip, 8);
+			// dbg_hid("spring: %i %i %i %i %i %i %i %i %i\n",
+			// 	parameters->d1, parameters->d2, parameters->k1, parameters->k2, parameters->clip,
+			// 	slot->current_cmd[2], slot->current_cmd[3], slot->current_cmd[4], slot->current_cmd[6]);
+			break;
+		case FF_DAMPER:
+			s1 = parameters->k1 < 0;
+			s2 = parameters->k2 < 0;
+			slot->current_cmd[2] = SCALE_COEFF(parameters->k1, 4);
+			// slot->current_cmd[3] = s1;
+			slot->current_cmd[4] = SCALE_COEFF(parameters->k2, 4);
+			// slot->current_cmd[5] = s2;
+			slot->current_cmd[6] = SCALE_VALUE_U16(parameters->clip, 8);
+			// dbg_hid("damper: %i %i %i %i %i %i %i %i\n",
+			// 	parameters->d1, parameters->d2, parameters->k1, parameters->k2, parameters->clip,
+			// 	slot->current_cmd[2], slot->current_cmd[4], slot->current_cmd[6]);
+			break;
+		case FF_FRICTION:
+			// s1 = parameters->k1 < 0;
+			// s2 = parameters->k2 < 0;
+			// slot->current_cmd[1] = 0x0e;
+			// slot->current_cmd[2] = SCALE_COEFF(parameters->k1, 8);
+			// slot->current_cmd[3] = SCALE_COEFF(parameters->k2, 8);
+			// slot->current_cmd[4] = SCALE_VALUE_U16(parameters->clip, 8);
+			// slot->current_cmd[5] = (s2 << 4) + s1;
+			// slot->current_cmd[6] = 0;
+			// dbg_hid("friction: %i %i %i %i %i\n",
+			// 	parameters->k1, parameters->k2, parameters->clip,
+			// 	slot->current_cmd[4], slot->current_cmd[6]);
+			break;
 	}
 
-	if (memcmp(original_cmd, slot->current_cmd, sizeof(original_cmd))) {
-		slot->is_updated = 1;
+	// check if slot needs to be updated
+	for(i = 0; i < 7; i++) {
+		if (original_cmd[i] != slot->current_cmd[i]) {
+			slot->is_updated = 1;
+			break;
+		}
 	}
 }
 
@@ -1047,6 +1049,11 @@ static void ftecff_init_slots(struct ftec_drv_data *drv_data)
 	drv_data->slots[1].effect_type = FF_SPRING;
 	drv_data->slots[2].effect_type = FF_DAMPER;
 	drv_data->slots[3].effect_type = FF_FRICTION;
+
+	drv_data->slots[0].current_cmd[1] = 0x08;
+	drv_data->slots[1].current_cmd[1] = 0x0b;
+	drv_data->slots[2].current_cmd[1] = 0x0c;
+	drv_data->slots[3].current_cmd[1] = 0x0; // FIXME: don't know this yet
 
 	for (i = 0; i < 4; i++) {
 		drv_data->slots[i].id = i;

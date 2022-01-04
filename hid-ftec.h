@@ -55,7 +55,6 @@ struct ftecff_slot {
 	int id;
 	struct ftecff_effect_parameters parameters;
 	u8 current_cmd[7];
-	int cmd_op;
 	int is_updated;
 	int effect_type;
 };
