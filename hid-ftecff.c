@@ -106,6 +106,19 @@ static u8 seg_bits(u8 value) {
 	return bits;
 }
 
+static void send_report_request_to_device(struct ftec_drv_data *drv_data)
+{
+	struct hid_device *hdev = drv_data->hid;
+	struct hid_report *report = drv_data->report;
+
+	if (hdev->product != CSR_ELITE_WHEELBASE_DEVICE_ID)
+	{
+		fix_values(report->field[0]->value);
+	}
+
+	hid_hw_request(hdev, report, HID_REQ_SET_REPORT);
+}
+
 static void ftec_set_range(struct hid_device *hid, u16 range)
 {
 	struct ftec_drv_data *drv_data;
@@ -129,8 +142,7 @@ static void ftec_set_range(struct hid_device *hid, u16 range)
 	value[4] = 0x00;
 	value[5] = 0x00;
 	value[6] = 0x00;
-	fix_values(value);
-	hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
+	send_report_request_to_device(drv_data);
 
 	value[0] = 0xf8;
 	value[1] = 0x09;
@@ -139,8 +151,7 @@ static void ftec_set_range(struct hid_device *hid, u16 range)
 	value[4] = 0x01;
 	value[5] = 0x00;
 	value[6] = 0x00;
-	fix_values(value);
-	hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
+	send_report_request_to_device(drv_data);
 
 	value[0] = 0xf8;
 	value[1] = 0x81;
@@ -149,8 +160,7 @@ static void ftec_set_range(struct hid_device *hid, u16 range)
 	value[4] = 0x00;
 	value[5] = 0x00;
 	value[6] = 0x00;
-	fix_values(value);
-	hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
+	send_report_request_to_device(drv_data);
 	spin_unlock_irqrestore(&drv_data->report_lock, flags);
 }
 
@@ -284,8 +294,7 @@ static ssize_t ftec_set_display(struct device *dev, struct device_attribute *att
 		value[6] = seg_bits(val%10);
 	}
 
-	fix_values(value);
-	hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
+	send_report_request_to_device(drv_data);
 	spin_unlock_irqrestore(&drv_data->report_lock, flags);
 
 	return count;
@@ -493,8 +502,7 @@ static void ftec_set_leds(struct hid_device *hid, u16 leds)
 	value[5] = 0x00;
 	value[6] = 0x00;
 	
-	fix_values(value);
-	hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
+	send_report_request_to_device(drv_data);
 
 	// reshuffle, since first led is highest bit
 	for( i=0; i<LEDS; i++) {
@@ -513,8 +521,7 @@ static void ftec_set_leds(struct hid_device *hid, u16 leds)
 	value[5] = 0x00;
 	value[6] = 0x00;
 	
-	fix_values(value);
-	hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
+	send_report_request_to_device(drv_data);
 	spin_unlock_irqrestore(&drv_data->report_lock, flags);
 }
 
@@ -596,8 +603,7 @@ static int ftec_init_led(struct hid_device *hid) {
 		value[5] = 0x00;
 		value[6] = 0x00;
 
-		fix_values(value);
-		hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
+		send_report_request_to_device(drv_data);
 	}
 
 	drv_data->led_state = 0;
@@ -652,9 +658,8 @@ void ftecff_send_cmd(struct ftec_drv_data *drv_data, u8 *cmd)
 
 	for(i = 0; i < 7; i++)
 		value[i] = cmd[i];
-	fix_values(value);
 
-	hid_hw_request(drv_data->hid, drv_data->report, HID_REQ_SET_REPORT);
+	send_report_request_to_device(drv_data);
 	spin_unlock_irqrestore(&drv_data->report_lock, flags);
 
 	if (unlikely(profile))

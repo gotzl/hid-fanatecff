@@ -5,7 +5,7 @@ GOTO="fanatec_end"
 LABEL="fanatec_vendor"
 
 # remove deadzone/fuzz
-ATTRS{idProduct}=="0001|0004|0005|0006|0007|0020|6204|0E03",  ATTRS{idVendor}=="0eb7", RUN{program}+="/usr/bin/evdev-joystick --evdev $devnode --deadzone 0 --fuzz 0"
+ATTRS{idProduct}=="0001|0004|0005|0006|0007|0011|0020|6204|0E03",  ATTRS{idVendor}=="0eb7", RUN{program}+="/usr/bin/evdev-joystick --evdev $devnode --deadzone 0 --fuzz 0"
 # set access rights
 SUBSYSTEM=="usb|input|hid", GROUP:="plugdev"
 
