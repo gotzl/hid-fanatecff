@@ -6,8 +6,6 @@
 
 #include "hid-ftec.h"
 
-int hid_debug = 1;
-
 #define FTEC_FF		        0x001
 #define FTEC_PEDALS     	0x002
 #define FTEC_LEDS     	    0x004
