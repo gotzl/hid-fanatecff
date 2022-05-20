@@ -913,7 +913,6 @@ static __always_inline void ftecff_calculate_resistance(struct ftecff_effect_sta
 
 static __always_inline int ftecff_timer(struct ftec_drv_data *drv_data)
 {
-	struct usbhid_device *usbhid = drv_data->hid->driver_data;
 	struct ftecff_slot *slot;
 	struct ftecff_effect_state *state;
 	struct ftecff_effect_parameters parameters[4];
@@ -921,22 +920,14 @@ static __always_inline int ftecff_timer(struct ftec_drv_data *drv_data)
 	unsigned long now = JIFFIES2MS(jiffies_now);
 	unsigned long flags;
 	unsigned int gain;
-	int current_period;
 	int count;
 	int effect_id;
 	int i;
 
 
-	// if (usbhid->outhead != usbhid->outtail) {
-	// 	current_period = timer_msecs;
-	// 	timer_msecs *= 2;
-	// 	hid_info(drv_data->hid, "Commands stacking up, increasing timer period to %d ms.", timer_msecs);
-	// 	return current_period;
-	// }
-
 	memset(parameters, 0, sizeof(parameters));
 
-	gain = 0xffff; //(unsigned long)entry->wdata.master_gain * entry->wdata.gain / 0xffff;
+	gain = 0xffff;
 
 	spin_lock_irqsave(&drv_data->timer_lock, flags);
 
