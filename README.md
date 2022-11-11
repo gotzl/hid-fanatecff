@@ -26,6 +26,14 @@ sudo make install
 This installs the kernel module `hid-fanatec.ko` in the `hid` dir of the running kernel and puts `fanatec.rules` into `/etc/udev/rules.d`. These rules allows access to the device for `users` group and sets deadzone/fuzz to 0 so that any wheel input is detected immediately.
 The driver should get loaded automatically when the wheel is plugged.
 
+### Packaging
+
+If you don't want to compile and install manually, following is a list of known packaged distributions.
+
+| System | Package |
+| ------ | ------- |
+| AUR | [`hid-fanatecff-dkms`](https://aur.archlinux.org/packages/hid-fanatecff-dkms) |
+
 ## Status
 
 ### General
