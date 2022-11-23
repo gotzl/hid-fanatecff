@@ -13,6 +13,7 @@ The Wheel Base should be set to 'PC mode' for the driver to be selected (CSL Eli
 * (experimental: 0EB7:0007 Podium Wheel Base DD2)
 * (experimental: 0EB7:0011 CSR Elite/Forza Motorsport Wheel Base)
 * (experimental: 0EB7:0020 CSL DD Wheel Base)
+* (experimental: 0EB7:0197 Porsche Turbo S Wheel)
 
 ## Installation
 

@@ -111,8 +111,8 @@ static void send_report_request_to_device(struct ftec_drv_data *drv_data)
 	struct hid_device *hdev = drv_data->hid;
 	struct hid_report *report = drv_data->report;
 
-	if (hdev->product != CSR_ELITE_WHEELBASE_DEVICE_ID)
-	{
+	if ((hdev->product != CSR_ELITE_WHEELBASE_DEVICE_ID) && 
+	    (hdev->product != PORSCHE_TURBO_S_WHEEL_ID)) {
 		fix_values(report->field[0]->value);
 	}
 
