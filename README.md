@@ -85,9 +85,9 @@ Advanced functions of wheels/bases are available via sysfs. Base sysfs path:
 #### ClubSport Pedals V3
 
 * pedal vibration: `rumble`
-  * 16776960 -> both pedals should rumble
-  * 16711680 -> throttle pedal rumble
-  * 65280 -> break pedal rumble
+  * 0xFFFF00 -> both pedals should rumble
+  * 0xFF0000 -> throttle pedal rumble
+  * 0xFF00 -> break pedal rumble
   * 0 -> stop rumble
 
 To access advanced functions from user space please see the [hid-fanatecff-tools](https://github.com/gotzl/hid-fanatecff-tools) project which also aims to support LED/Display access from games.

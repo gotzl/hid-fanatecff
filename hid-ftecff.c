@@ -189,7 +189,12 @@ static ssize_t ftec_range_store(struct device *dev, struct device_attribute *att
 {
 	struct hid_device *hid = to_hid_device(dev);
 	struct ftec_drv_data *drv_data;
-	u16 range = simple_strtoul(buf, NULL, 10);
+	u16 range;
+
+	if (kstrtou16(buf, 0, &range) != 0) {
+		hid_err(hid, "Invalid range %s!\n", buf);
+		return -EINVAL;
+	}
 
 	drv_data = hid_get_drvdata(hid);
 	if (!drv_data) {
@@ -267,7 +272,12 @@ static ssize_t ftec_set_display(struct device *dev, struct device_attribute *att
 	struct ftec_drv_data *drv_data;
 	unsigned long flags;
 	s32 *value;
-	s16 val = simple_strtol(buf, NULL, 10);
+	s16 val;
+
+	if (kstrtos16(buf, 0, &val) != 0) {
+		hid_err(hid, "Invalid value %s!\n", buf);
+		return -EINVAL;
+	}
 
 	drv_data = hid_get_drvdata(hid);
 	if (!drv_data) {
@@ -431,8 +441,12 @@ static ssize_t ftec_tuning_store(struct device *dev, struct device_attribute *at
 {
 	struct hid_device *hid = to_hid_device(dev);
 	int addr;
+	s16 val;
 
-	s16 val = simple_strtol(buf, NULL, 10);
+	if (kstrtos16(buf, 0, &val) != 0) {
+		hid_err(hid, "Invalid value %s!\n", buf);
+		return -EINVAL;
+	}
 	dbg_hid(" ... ftec_tuning_store %s %i\n", attr->attr.name, val);
 
 	addr = ftec_tuning_get_addr(attr);
