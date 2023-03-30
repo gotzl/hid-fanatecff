@@ -288,6 +288,16 @@ static void ftec_remove(struct hid_device *hdev)
 	kfree(drv_data);
 }
 
+static __u8 *ftec_report_fixup(struct hid_device *hdev, __u8 *rdesc,
+		unsigned int *rsize)
+{
+	struct ftec_drv_data *drv_data = hid_get_drvdata(hdev);
+	if (drv_data->quirks & FTEC_FF) {
+		rdesc[5] = 0x00;  // set Collection to 'Physical' instead of 'Application'
+	}
+	return rdesc;
+}
+
 static const struct hid_device_id devices[] = {
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CLUBSPORT_V2_WHEELBASE_DEVICE_ID), .driver_data = FTEC_FF | FTEC_LEDS},
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CLUBSPORT_V25_WHEELBASE_DEVICE_ID), .driver_data = FTEC_FF | FTEC_LEDS},
@@ -309,6 +319,7 @@ static struct hid_driver ftec_csl_elite = {
 		.id_table = devices,
         .probe = ftec_probe,
         .remove = ftec_remove,
+		.report_fixup = ftec_report_fixup,
 };
 module_hid_driver(ftec_csl_elite)
 
