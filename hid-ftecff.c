@@ -49,7 +49,7 @@ MODULE_PARM_DESC(profile, "Enable profile debug messages.");
 #define ADDR_SEN 	0x03
 #define ADDR_FF 	0x04
 #define ADDR_SHO 	0x05
-#define ADDR_BLI 	0x06											
+#define ADDR_BLI 	0x06
 #define ADDR_DRI 	0x09
 #define ADDR_FOR 	0x0a
 #define ADDR_SPR 	0x0b
@@ -83,27 +83,98 @@ static void fix_values(s32 *values) {
 	}
 }
 
-static u8 num[11][8] = {  { 1,1,1,1,1,1,0,0 },  // 0
-						{ 0,1,1,0,0,0,0,0 },  // 1
-						{ 1,1,0,1,1,0,1,0 },  // 2
-						{ 1,1,1,1,0,0,1,0 },  // 3
-						{ 0,1,1,0,0,1,1,0 },  // 4
-						{ 1,0,1,1,0,1,1,0 },  // 5
-						{ 1,0,1,1,1,1,1,0 },  // 6
-						{ 1,1,1,0,0,0,0,0 },  // 7
-						{ 1,1,1,1,1,1,1,0 },  // 8
-						{ 1,1,1,0,0,1,1,0 },  // 9
-						{ 0,0,0,0,0,0,0,1}};  // dot
+/*
+ bits 7 6 5 4 3 2 1 0
+ 7 segments bits and dot
+      0
+    5   1
+      6
+    4   2
+      3   7
+*/
+static u8 segbits[42] ={
+	 63, // 0
+	  6, // 1
+	 91, // 2
+	 79, // 3
+	102, // 4
+	109, // 5
+	125, // 6
+	  7, // 7
+	127, // 8
+	103, // 9
+	128, // dot
+	  0, // blank
+	 57, // [
+	 15, // ]
+	 64, // -
+	  8, // _
+	119, // a
+	124, // b
+	 88, // c
+	 94, // d
+	121, // e
+	113, // f
+	 61, // g
+	118, // h
+	 48, // i
+	 14, // j
+	  0, // k - placeholder/blank
+	 56, // l
+	  0, // m - placeholder/blank
+	 84, // n
+	 92, // o
+	115, // p
+	103, // q
+	 80, // r
+	109, // s
+	120, // t
+	 62, // u
+	  0, // v - placeholder/blank
+	  0, // w - placeholder/blank
+	  0, // x - placeholder/blank
+	110, // y
+	 91  // z
+};
 
-static u8 seg_bits(u8 value) {
-	int i;
-	u8 bits = 0;
+static u8 seg_bits(u8 value, bool point) {
+	u8 num_index = 11; // defaults to blank
 
-	for( i=0; i<8; i++) {
-		if (num[value][i]) 
-			bits |= 1 << i;
+	// capital letters ASCII 65 - 90 / poor mans toLower
+	if(value>63 && value<91) {
+		value=value+32;
 	}
-	return bits;
+	// point
+	if(value==46) {
+		num_index = 10;
+	}
+	// opening square bracket
+	else if(value==91) {
+		num_index = 12;
+	}
+	// closing square bracket
+	else if(value==93) {
+		num_index = 13;
+	}
+	// hyphen
+	else if(value==45) {
+		num_index = 14;
+	}
+	// underscore
+	else if(value==95) {
+		num_index = 15;
+	}
+	// ascii numbers
+	else if(value>47 && value<58) {
+		num_index=value-48;
+	}
+	// lower case letters ASCII 98 - 117
+	else if(value>96 && value<123) {
+		num_index=value-81;
+	}
+
+	// if a point has to be set, flip it in the segment
+	return point ? segbits[num_index]+segbits[10] : segbits[num_index];
 }
 
 static void send_report_request_to_device(struct ftec_drv_data *drv_data)
@@ -272,9 +343,9 @@ static ssize_t ftec_set_display(struct device *dev, struct device_attribute *att
 	struct ftec_drv_data *drv_data;
 	unsigned long flags;
 	s32 *value;
-	s16 val;
 
-	if (kstrtos16(buf, 0, &val) != 0) {
+	// check the buffer, max 6 chars allowed, e.g. '1.2.3.', non dot chars surplus will be discarded
+	if (buf[7] != 0x00) {
 		hid_err(hid, "Invalid value %s!\n", buf);
 		return -EINVAL;
 	}
@@ -298,10 +369,29 @@ static ssize_t ftec_set_display(struct device *dev, struct device_attribute *att
 	value[5] = 0x00;
 	value[6] = 0x00;
 
-	if (val>=0) {
-		value[4] = seg_bits((val/100)%100);
-		value[5] = seg_bits((val/10)%10);
-		value[6] = seg_bits(val%10);
+	int bufIndex = 0;
+	// set each of the segments
+	for(int valueIndex = 4; valueIndex <= 6; valueIndex++) {
+		bool point = false;
+		// check if next char is a point or comma if not end of the string
+		if(buf[bufIndex+1] != '\0') {
+			point = buf[bufIndex+1] == '.' || buf[bufIndex+1] == ',';
+		}
+		value[valueIndex] = seg_bits(buf[bufIndex], point);
+		// determinate next value, if a dot was encountered we need to step one index further
+		bufIndex += point ? 2 : 1;
+	}
+	// 'center' values by shifting shorter inputs to the right
+	if(value[4] > 0x00 && value[6] == 0x00) {
+		if(value[5] == 0x00) {
+			value[5] = value[4];
+			value[4] = 0x00;
+		}
+		else if(value[5] > 0) {
+			value[6] = value[5];
+			value[5] = value[4];
+			value[4] = 0x00;
+		}
 	}
 
 	send_report_request_to_device(drv_data);
@@ -611,8 +701,8 @@ static int ftec_init_led(struct hid_device *hid) {
 
 		value[0] = 0xf8;
 		value[1] = 0x09;
-		value[2] = 0x08;		
-		value[3] = 0x01;
+		value[2] = 0x08;
+		value[3] = 0x01; // set green led to indicate driver is loaded
 		value[4] = 0x00;
 		value[5] = 0x00;
 		value[6] = 0x00;
