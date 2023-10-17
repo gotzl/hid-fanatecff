@@ -344,8 +344,8 @@ static ssize_t ftec_set_display(struct device *dev, struct device_attribute *att
 	unsigned long flags;
 	s32 *value;
 
-	// check the buffer, max 6 chars allowed, e.g. '1.2.3.', non dot chars surplus will be discarded
-	if (buf[7] != 0x00) {
+	// check the buffer size, note that in lack of points or commas, only the first 3 characters will be processed
+	if (count > 7) {
 		hid_err(hid, "Invalid value %s!\n", buf);
 		return -EINVAL;
 	}
@@ -370,11 +370,11 @@ static ssize_t ftec_set_display(struct device *dev, struct device_attribute *att
 	value[6] = 0x00;
 
 	int bufIndex = 0;
-	// set each of the segments
-	for(int valueIndex = 4; valueIndex <= 6; valueIndex++) {
+	// set each of the segments as long there is input data
+	for(int valueIndex = 4; valueIndex <= 6 && bufIndex < count; valueIndex++) {
 		bool point = false;
 		// check if next char is a point or comma if not end of the string
-		if(buf[bufIndex+1] != '\0') {
+		if(bufIndex+1 < count) {
 			point = buf[bufIndex+1] == '.' || buf[bufIndex+1] == ',';
 		}
 		value[valueIndex] = seg_bits(buf[bufIndex], point);
