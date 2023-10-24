@@ -6,13 +6,14 @@ The Wheel Base should be set to 'PC mode' for the driver to be selected (CSL Eli
 
 * 0EB7:0E03 FANATEC CSL Elite Wheel Base
 * 0EB7:0005 FANATEC CSL Elite Wheel Base PS4
+* 0EB7:0020 FANATEC CSL DD / DD Pro Wheel Base
 * 0EB7:6204 FANATEC CSL Elite Pedals
 * (experimental: 0EB7:0001 FANATEC ClubSport Wheel Base V2)
 * (experimental: 0EB7:0004 FANATEC ClubSport Wheel Base V2.5)
+* (experimental: 0EB7:183b FANATEC ClubSport Pedals V3)
 * (experimental: 0EB7:0006 Podium Wheel Base DD1)
 * (experimental: 0EB7:0007 Podium Wheel Base DD2)
 * (experimental: 0EB7:0011 CSR Elite/Forza Motorsport Wheel Base)
-* (experimental: 0EB7:0020 CSL DD Wheel Base)
 
 ## Installation
 
@@ -73,14 +74,14 @@ Advanced functions of wheels/bases are available via sysfs. Base sysfs path:
   * values get/set: `BLI DPR DRI FEI FF FOR SEN SHO SPR`
   * reset all tuning sets by echoing anything into `RESET`
 
-#### CSL Elite pedals
-
-* loadcell adjustment: `load` (no readback yet)
-
 #### ClubSport Forumla1 wheel
 
 * RPM LEDs (combined with base)
 * display: `display` (negative value turns display off)
+
+#### CSL Elite pedals
+
+* loadcell adjustment: `load` (no readback yet)
 
 #### ClubSport Pedals V3
 
