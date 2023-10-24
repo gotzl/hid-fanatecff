@@ -49,11 +49,12 @@ Games I test (more or less regularly) and that are expected to work:
 * AC / ACC
 * Dirt2
 * rFactor2
+* F1 22
 
 Games that don't work properly:
 
-* F1 202X (#22)
-* BeamNG.drive (#23)
+* F1 2020/2021 (#22)
+* BeamNG.drive (proton) (#23)
 
 ### Device specific
 
