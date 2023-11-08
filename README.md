@@ -47,7 +47,7 @@ Currently not supported effects: FF_FRICTION, FF_INERTIA
 Games I test (more or less regularly) and that are expected to work:
 
 * AC / ACC
-* Dirt2
+* Dirt2 / WRC
 * rFactor2
 * F1 22
 
