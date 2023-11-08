@@ -49,7 +49,7 @@ Games I test (more or less regularly) and that are expected to work:
 * AC / ACC
 * Dirt2 / WRC
 * rFactor2
-* F1 22
+* F1 22/23
 
 Games that don't work properly:
 
