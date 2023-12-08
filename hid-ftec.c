@@ -124,7 +124,7 @@ static ssize_t ftec_load_show(struct device *dev, struct device_attribute *attr,
 		return 0;
 	}
 
-    count = scnprintf(buf, PAGE_SIZE, "%u\n", ftec_get_load(hid));
+	count = scnprintf(buf, PAGE_SIZE, "%u\n", ftec_get_load(hid));
 	return count;
 }
 
@@ -132,8 +132,10 @@ static ssize_t ftec_load_store(struct device *dev, struct device_attribute *attr
 				 const char *buf, size_t count)
 {
 	struct hid_device *hid = to_hid_device(dev);
-	u8 load = simple_strtoul(buf, NULL, 10);
-	ftec_set_load(hid, load);
+	u8 load;
+	if (kstrtou8(buf, 0, &load) == 0) {
+		ftec_set_load(hid, load);
+	}
 	return count;
 }
 static DEVICE_ATTR(load, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_load_show, ftec_load_store);
@@ -142,8 +144,10 @@ static ssize_t ftec_rumble_store(struct device *dev, struct device_attribute *at
 				 const char *buf, size_t count)
 {
 	struct hid_device *hid = to_hid_device(dev);
-	u32 rumble = simple_strtoul(buf, NULL, 10);
-	ftec_set_rumble(hid, rumble);
+	u32 rumble;
+	if (kstrtou32(buf, 0, &rumble) == 0) {
+		ftec_set_rumble(hid, rumble);
+	}
 	return count;
 }
 static DEVICE_ATTR(rumble, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, NULL, ftec_rumble_store);

@@ -6,13 +6,14 @@ The Wheel Base should be set to 'PC mode' for the driver to be selected (CSL Eli
 
 * 0EB7:0E03 FANATEC CSL Elite Wheel Base
 * 0EB7:0005 FANATEC CSL Elite Wheel Base PS4
+* 0EB7:0020 FANATEC CSL DD / DD Pro Wheel Base
 * 0EB7:6204 FANATEC CSL Elite Pedals
 * (experimental: 0EB7:0001 FANATEC ClubSport Wheel Base V2)
 * (experimental: 0EB7:0004 FANATEC ClubSport Wheel Base V2.5)
+* (experimental: 0EB7:183b FANATEC ClubSport Pedals V3)
 * (experimental: 0EB7:0006 Podium Wheel Base DD1)
 * (experimental: 0EB7:0007 Podium Wheel Base DD2)
 * (experimental: 0EB7:0011 CSR Elite/Forza Motorsport Wheel Base)
-* (experimental: 0EB7:0020 CSL DD Wheel Base)
 * (experimental: 0EB7:0197 Porsche Turbo S Wheel)
 
 ## Installation
@@ -47,13 +48,14 @@ Currently not supported effects: FF_FRICTION, FF_INERTIA
 Games I test (more or less regularly) and that are expected to work:
 
 * AC / ACC
-* Dirt2
+* Dirt2 / WRC
 * rFactor2
+* F1 22/23
 
 Games that don't work properly:
 
-* F1 202X (#22)
-* BeamNG.drive (#23)
+* F1 2020/2021 (#22)
+* BeamNG.drive (proton) (#23)
 
 ### Device specific
 
@@ -74,21 +76,21 @@ Advanced functions of wheels/bases are available via sysfs. Base sysfs path:
   * values get/set: `BLI DPR DRI FEI FF FOR SEN SHO SPR`
   * reset all tuning sets by echoing anything into `RESET`
 
-#### CSL Elite pedals
-
-* loadcell adjustment: `load` (no readback yet)
-
 #### ClubSport Forumla1 wheel
 
 * RPM LEDs (combined with base)
 * display: `display` (negative value turns display off)
 
+#### CSL Elite pedals
+
+* loadcell adjustment: `load` (no readback yet)
+
 #### ClubSport Pedals V3
 
 * pedal vibration: `rumble`
-  * 16776960 -> both pedals should rumble
-  * 16711680 -> throttle pedal rumble
-  * 65280 -> break pedal rumble
+  * 0xFFFF00 -> both pedals should rumble
+  * 0xFF0000 -> throttle pedal rumble
+  * 0xFF00 -> break pedal rumble
   * 0 -> stop rumble
 
 To access advanced functions from user space please see the [hid-fanatecff-tools](https://github.com/gotzl/hid-fanatecff-tools) project which also aims to support LED/Display access from games.
