@@ -202,7 +202,7 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 	if ((hdev->product == CLUBSPORT_V2_WHEELBASE_DEVICE_ID) || 
 	    (hdev->product == CLUBSPORT_V25_WHEELBASE_DEVICE_ID) ||
 	    (hdev->product == CSR_ELITE_WHEELBASE_DEVICE_ID) ||
-	    (hdev->product == PORSCHE_TURBO_S_WHEEL_ID)) {
+	    (hdev->product == PORSCHE_911_WHEELBASE_DEVICE_ID)) {
 		drv_data->max_range = 900;
 	}	
 
@@ -300,7 +300,7 @@ static const struct hid_device_id devices[] = {
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, PODIUM_WHEELBASE_DD2_DEVICE_ID), .driver_data = FTEC_FF | FTEC_LEDS },
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_DD_WHEELBASE_DEVICE_ID), .driver_data = FTEC_FF | FTEC_LEDS },
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSR_ELITE_WHEELBASE_DEVICE_ID), .driver_data = FTEC_FF | FTEC_LEDS },
-	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, PORSCHE_TURBO_S_WHEEL_ID), .driver_data = FTEC_FF },
+	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, PORSCHE_911_WHEELBASE_DEVICE_ID), .driver_data = FTEC_FF },
     { }
 };
 
