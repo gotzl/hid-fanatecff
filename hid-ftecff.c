@@ -679,7 +679,7 @@ static enum led_brightness ftec_led_get_brightness(struct led_classdev *led_cdev
 }
 #endif
 
-
+#ifdef CONFIG_LEDS_CLASS
 static int ftec_init_led(struct hid_device *hid) {
 	struct led_classdev *led;
 	size_t name_sz;
@@ -751,6 +751,7 @@ err_leds:
 	}
 	return 0;
 }
+#endif
 
 void ftecff_send_cmd(struct ftec_drv_data *drv_data, u8 *cmd)
 {
