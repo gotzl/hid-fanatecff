@@ -891,12 +891,8 @@ void ftecff_update_slot(struct ftecff_slot *slot, struct ftecff_effect_parameter
 			// 	slot->current_cmd[2], slot->current_cmd[3], slot->current_cmd[4], slot->current_cmd[6]);
 			break;
 		case FF_DAMPER:
-			s1 = parameters->k1 < 0;
-			s2 = parameters->k2 < 0;
-			slot->current_cmd[2] = SCALE_COEFF(parameters->k1, 4);
-			// slot->current_cmd[3] = s1;
-			slot->current_cmd[4] = SCALE_COEFF(parameters->k2, 4);
-			// slot->current_cmd[5] = s2;
+			slot->current_cmd[2] = SCALE_VALUE_U16(parameters->k1, 8);
+			slot->current_cmd[4] = SCALE_VALUE_U16(parameters->k2, 8);
 			slot->current_cmd[6] = SCALE_VALUE_U16(parameters->clip, 8);
 			// dbg_hid("damper: %i %i %i %i %i %i %i %i\n",
 			// 	parameters->d1, parameters->d2, parameters->k1, parameters->k2, parameters->clip,
