@@ -36,6 +36,7 @@ module_param(init_range, int, 0);
 static int timer_msecs = DEFAULT_TIMER_PERIOD;
 static int spring_level = 100;
 static int damper_level = 100;
+static int inertia_level = 100;
 static int friction_level = 100;
 
 static int profile = 1;
@@ -60,6 +61,8 @@ static const signed short ftecff_wheel_effects[] = {
 	FF_CONSTANT,
 	FF_SPRING,
 	FF_DAMPER,
+	FF_INERTIA,
+	FF_FRICTION,
 	FF_PERIODIC,
 	FF_SINE,
 	FF_SQUARE,
@@ -853,20 +856,26 @@ void ftecff_update_slot(struct ftecff_slot *slot, struct ftecff_effect_parameter
 	int s2;
 
 	memcpy(original_cmd, slot->current_cmd, sizeof(original_cmd));
+	memset(slot->current_cmd, 0, sizeof(slot->current_cmd));
 
 	// select slot
 	slot->current_cmd[0] = (slot->id<<4) | 0x1;
-
-	// set params to zero
-	for(i = 2; i < 7; i++)
-		slot->current_cmd[i] = 0;
+	// set command
+	slot->current_cmd[1] = slot->cmd;
 
 	if ((slot->effect_type == FF_CONSTANT && parameters->level == 0) ||
-			(slot->effect_type != FF_CONSTANT && parameters->clip == 0)) {
+	    (slot->effect_type != FF_CONSTANT && parameters->clip == 0)) {
 		// disable slot
 		slot->current_cmd[0] |= 0x2;
-		if (original_cmd[0] != slot->current_cmd[0])
+		// reset values
+		if (slot->effect_type != FF_CONSTANT && slot->effect_type != FF_SPRING) {
+			slot->current_cmd[2] = 0x08;
+			slot->current_cmd[4] = 0x08;
+			slot->current_cmd[6] = 0xff;
+		}
+		if (original_cmd[0] != slot->current_cmd[0]) {
 			slot->is_updated = 1;
+		}
 		return;
 	}
 
@@ -888,34 +897,22 @@ void ftecff_update_slot(struct ftecff_slot *slot, struct ftecff_effect_parameter
 			slot->current_cmd[2] = d1 >> 3;
 			slot->current_cmd[3] = d2 >> 3;
 			slot->current_cmd[4] = (SCALE_COEFF(parameters->k2, 4) << 4) + SCALE_COEFF(parameters->k1, 4);
-			// slot->current_cmd[5] = ((d2 & 7) << 5) + ((d1 & 7) << 1) + (s2 << 4) + s1;
 			slot->current_cmd[6] = SCALE_VALUE_U16(parameters->clip, 8);
 			// dbg_hid("spring: %i %i %i %i %i %i %i %i %i\n",
 			// 	parameters->d1, parameters->d2, parameters->k1, parameters->k2, parameters->clip,
 			// 	slot->current_cmd[2], slot->current_cmd[3], slot->current_cmd[4], slot->current_cmd[6]);
 			break;
 		case FF_DAMPER:
-			slot->current_cmd[2] = SCALE_VALUE_U16(parameters->k1, 8);
-			slot->current_cmd[4] = SCALE_VALUE_U16(parameters->k2, 8);
+		case FF_INERTIA:
+		case FF_FRICTION:
+			slot->current_cmd[2] = SCALE_COEFF(parameters->k1, 4);
+			slot->current_cmd[4] = SCALE_COEFF(parameters->k2, 4);
 			slot->current_cmd[6] = SCALE_VALUE_U16(parameters->clip, 8);
 			// dbg_hid("damper: %i %i %i %i %i %i %i %i\n",
 			// 	parameters->d1, parameters->d2, parameters->k1, parameters->k2, parameters->clip,
 			// 	slot->current_cmd[2], slot->current_cmd[4], slot->current_cmd[6]);
 			break;
-		case FF_FRICTION:
-			// s1 = parameters->k1 < 0;
-			// s2 = parameters->k2 < 0;
-			// slot->current_cmd[1] = 0x0e;
-			// slot->current_cmd[2] = SCALE_COEFF(parameters->k1, 8);
-			// slot->current_cmd[3] = SCALE_COEFF(parameters->k2, 8);
-			// slot->current_cmd[4] = SCALE_VALUE_U16(parameters->clip, 8);
-			// slot->current_cmd[5] = (s2 << 4) + s1;
-			// slot->current_cmd[6] = 0;
-			// dbg_hid("friction: %i %i %i %i %i\n",
-			// 	parameters->k1, parameters->k2, parameters->clip,
-			// 	slot->current_cmd[4], slot->current_cmd[6]);
-			break;
-	}
+		}
 
 	// check if slot needs to be updated
 	for(i = 0; i < 7; i++) {
@@ -989,38 +986,30 @@ static __always_inline int ftecff_calculate_periodic(struct ftecff_effect_state 
 }
 
 static __always_inline void ftecff_calculate_spring(struct ftecff_effect_state *state, struct ftecff_effect_parameters *parameters)
-{
+{	
 	struct ff_condition_effect *condition = &state->effect.u.condition[0];
-	int d1;
-	int d2;
 
-	d1 = condition->center - condition->deadband / 2;
-	d2 = condition->center + condition->deadband / 2;
-	if (d1 < parameters->d1) {
-		parameters->d1 = d1;
-	}
-	if (d2 > parameters->d2) {
-		parameters->d2 = d2;
-	}
-	parameters->k1 += condition->left_coeff;
-	parameters->k2 += condition->right_coeff;
-	parameters->clip = max(parameters->clip, (unsigned)max(condition->left_saturation, condition->right_saturation));
+	parameters->d1 = ((int)condition->center) - condition->deadband / 2;
+	parameters->d2 = ((int)condition->center) + condition->deadband / 2;
+	parameters->k1 = condition->left_coeff;
+	parameters->k2 = condition->right_coeff;
+	parameters->clip = (unsigned)condition->right_saturation;
 }
 
 static __always_inline void ftecff_calculate_resistance(struct ftecff_effect_state *state, struct ftecff_effect_parameters *parameters)
 {
 	struct ff_condition_effect *condition = &state->effect.u.condition[0];
 
-	parameters->k1 += condition->left_coeff;
-	parameters->k2 += condition->right_coeff;
-	parameters->clip = max(parameters->clip, (unsigned)max(condition->left_saturation, condition->right_saturation));
+	parameters->k1 = condition->left_coeff;
+	parameters->k2 = condition->right_coeff;
+	parameters->clip = (unsigned)condition->right_saturation;
 }
 
 static __always_inline int ftecff_timer(struct ftec_drv_data *drv_data)
 {
 	struct ftecff_slot *slot;
 	struct ftecff_effect_state *state;
-	struct ftecff_effect_parameters parameters[4];
+	struct ftecff_effect_parameters parameters[5];
 	unsigned long jiffies_now = jiffies;
 	unsigned long now = JIFFIES2MS(jiffies_now);
 	unsigned long flags;
@@ -1080,6 +1069,12 @@ static __always_inline int ftecff_timer(struct ftec_drv_data *drv_data)
 			case FF_DAMPER:
 				ftecff_calculate_resistance(state, &parameters[2]);
 				break;
+			case FF_INERTIA:
+				ftecff_calculate_resistance(state, &parameters[3]);
+				break;
+			case FF_FRICTION:
+				ftecff_calculate_resistance(state, &parameters[4]);
+				break;
 			case FF_PERIODIC:
 				parameters[0].level += ftecff_calculate_periodic(state);
 				break;				
@@ -1091,15 +1086,16 @@ static __always_inline int ftecff_timer(struct ftec_drv_data *drv_data)
 	parameters[0].level = (long)parameters[0].level * gain / 0xffff;
 	parameters[1].clip = (long)parameters[1].clip * spring_level / 100;
 	parameters[2].clip = (long)parameters[2].clip * damper_level / 100;
-	parameters[3].clip = (long)parameters[3].clip * friction_level / 100;
+	parameters[3].clip = (long)parameters[3].clip * inertia_level / 100;
+	parameters[4].clip = (long)parameters[4].clip * friction_level / 100;
 
-	for (i = 1; i < 4; i++) {
+	for (i = 1; i < 5; i++) {
 		parameters[i].k1 = (long)parameters[i].k1 * gain / 0xffff;
 		parameters[i].k2 = (long)parameters[i].k2 * gain / 0xffff;
 		parameters[i].clip = (long)parameters[i].clip * gain / 0xffff;
 	}
 
-	for (i = 0; i < 4; i++) {
+	for (i = 0; i < 5; i++) {
 		slot = &drv_data->slots[i];
 		ftecff_update_slot(slot, &parameters[i]);
 		if (slot->is_updated) {
@@ -1149,14 +1145,16 @@ static void ftecff_init_slots(struct ftec_drv_data *drv_data)
 	drv_data->slots[0].effect_type = FF_CONSTANT;
 	drv_data->slots[1].effect_type = FF_SPRING;
 	drv_data->slots[2].effect_type = FF_DAMPER;
-	drv_data->slots[3].effect_type = FF_FRICTION;
+	drv_data->slots[3].effect_type = FF_INERTIA;
+	drv_data->slots[4].effect_type = FF_FRICTION;
 
-	drv_data->slots[0].current_cmd[1] = 0x08;
-	drv_data->slots[1].current_cmd[1] = 0x0b;
-	drv_data->slots[2].current_cmd[1] = 0x0c;
-	drv_data->slots[3].current_cmd[1] = 0x0; // FIXME: don't know this yet
+	drv_data->slots[0].cmd = 0x08;
+	drv_data->slots[1].cmd = 0x0b;
+	drv_data->slots[2].cmd = 0x0c;
+	drv_data->slots[3].cmd = 0x0c;
+	drv_data->slots[4].cmd = 0x0c;
 
-	for (i = 0; i < 4; i++) {
+	for (i = 0; i < 5; i++) {
 		drv_data->slots[i].id = i;
 		ftecff_update_slot(&drv_data->slots[i], &parameters);
 		ftecff_send_cmd(drv_data, drv_data->slots[i].current_cmd);

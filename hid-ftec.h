@@ -69,6 +69,7 @@ struct ftecff_slot {
 	u8 current_cmd[7];
 	int is_updated;
 	int effect_type;
+	u8 cmd;
 };
 
 struct ftec_drv_data {
@@ -78,7 +79,7 @@ struct ftec_drv_data {
 	struct hrtimer hrtimer;
 	struct hid_device *hid;
 	struct hid_report *report;
-	struct ftecff_slot slots[4];
+	struct ftecff_slot slots[5];
 	struct ftecff_effect_state states[FTECFF_MAX_EFFECTS];
 	int effects_used;	
 	u16 range;
