@@ -3,6 +3,7 @@
 
 #define FANATEC_VENDOR_ID 0x0eb7
 
+// wheelbases
 #define CLUBSPORT_V2_WHEELBASE_DEVICE_ID 0x0001
 #define CLUBSPORT_V25_WHEELBASE_DEVICE_ID 0x0004
 #define CLUBSPORT_PEDALS_V3_DEVICE_ID 0x183b
@@ -14,6 +15,7 @@
 #define CSL_DD_WHEELBASE_DEVICE_ID 0x0020
 #define CSR_ELITE_WHEELBASE_DEVICE_ID 0x0011
 
+// wheels
 #define CSL_STEERING_WHEEL_P1_V2 0x0008
 #define CSL_ELITE_STEERING_WHEEL_WRC_ID 0x0112
 #define CSL_ELITE_STEERING_WHEEL_MCLAREN_GT3_V2_ID 0x280b
@@ -22,9 +24,16 @@
 #define PODIUM_STEERING_WHEEL_PORSCHE_911_GT3_R_ID 0x050c
 
 
+// quirks
+#define FTEC_FF                 0x001
+#define FTEC_PEDALS             0x002
+#define FTEC_WHEELBASE_LEDS     0x004
+
+
 #define LEDS 9
 #define NUM_TUNING_SLOTS 5
 #define FTECFF_MAX_EFFECTS 16
+
 
 struct ftecff_effect_state {
 	struct ff_effect effect;
@@ -64,7 +73,7 @@ struct ftecff_slot {
 
 struct ftec_drv_data {
 	unsigned long quirks;
-    spinlock_t report_lock; /* Protect output HID report */
+	spinlock_t report_lock; /* Protect output HID report */
 	spinlock_t timer_lock;
 	struct hrtimer hrtimer;
 	struct hid_device *hid;

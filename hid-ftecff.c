@@ -587,26 +587,30 @@ static void ftec_set_leds(struct hid_device *hid, u16 leds)
 	u16 _leds = 0;
 	int i;
 
-	// dbg_hid(" ... set_leds base %04X\n", leds);
 
 	drv_data = hid_get_drvdata(hid);
 	if (!drv_data) {
 		hid_err(hid, "Private driver data not found!\n");
 		return;
 	}
-
-	value = drv_data->report->field[0]->value;
-
-	spin_lock_irqsave(&drv_data->report_lock, flags);
-	value[0] = 0xf8;
-	value[1] = 0x13;
-	value[2] = leds&0xff;
-	value[3] = 0x00;
-	value[4] = 0x00;
-	value[5] = 0x00;
-	value[6] = 0x00;
 	
-	send_report_request_to_device(drv_data);
+	spin_lock_irqsave(&drv_data->report_lock, flags);
+
+	if (drv_data->quirks & FTEC_WHEELBASE_LEDS) {
+		// dbg_hid(" ... set_leds base %04X\n", leds);
+
+		value = drv_data->report->field[0]->value;
+
+		value[0] = 0xf8;
+		value[1] = 0x13;
+		value[2] = leds&0xff;
+		value[3] = 0x00;
+		value[4] = 0x00;
+		value[5] = 0x00;
+		value[6] = 0x00;
+		
+		send_report_request_to_device(drv_data);
+	}
 
 	// reshuffle, since first led is highest bit
 	for( i=0; i<LEDS; i++) {
