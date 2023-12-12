@@ -12,6 +12,7 @@ module_param(init_load, int, 0);
 
 int ftecff_init(struct hid_device *hdev);
 void ftecff_remove(struct hid_device *hdev);
+int ftecff_raw_event(struct hid_device *hdev, struct hid_report *report, u8 *data, int size);
 
 static u8 ftec_get_load(struct hid_device *hid)
 {
@@ -182,8 +183,7 @@ static int ftec_init(struct hid_device *hdev) {
 	drv_data->report = report;
 	drv_data->hid = hdev;
 	spin_lock_init(&drv_data->report_lock);
-
-    return 0;
+	return 0;
 }
 
 static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
@@ -192,7 +192,7 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 	__u8 iface_num = iface->cur_altsetting->desc.bInterfaceNumber;
 	struct ftec_drv_data *drv_data;
 	unsigned int connect_mask = HID_CONNECT_DEFAULT;
-    	int ret;
+	int ret;
 
 	dbg_hid("%s: ifnum %d\n", __func__, iface_num);
 
@@ -201,14 +201,18 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 		hid_err(hdev, "Insufficient memory, cannot allocate driver data\n");
 		return -ENOMEM;
 	}
-    	drv_data->quirks = id->driver_data;
+	drv_data->quirks = id->driver_data;
 	drv_data->min_range = 90;
-	drv_data->max_range = 1080;
+	drv_data->max_range = 1090; // technically max_range is 1080, but 1090 is used as 'auto'
 	if (hdev->product == CLUBSPORT_V2_WHEELBASE_DEVICE_ID || 
-			hdev->product == CLUBSPORT_V25_WHEELBASE_DEVICE_ID ||
-				hdev->product == CSR_ELITE_WHEELBASE_DEVICE_ID) {
+	    hdev->product == CLUBSPORT_V25_WHEELBASE_DEVICE_ID ||
+	    hdev->product == CSR_ELITE_WHEELBASE_DEVICE_ID) {
 		drv_data->max_range = 900;
-	}	
+	} else if (hdev->product == PODIUM_WHEELBASE_DD1_DEVICE_ID ||
+		   hdev->product == PODIUM_WHEELBASE_DD2_DEVICE_ID ||
+		   hdev->product == CSL_DD_WHEELBASE_DEVICE_ID) {
+		drv_data->max_range = 2530;  // technically max_range is 2520, but 2530 is used as 'auto'
+	}
 
 	hid_set_drvdata(hdev, (void *)drv_data);
 
@@ -237,8 +241,17 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 	if (drv_data->quirks & FTEC_FF) {
 		ret = ftecff_init(hdev);
 		if (ret) {
-		    	hid_err(hdev, "ff init failed\n");
-		    	goto err_stop;
+			hid_err(hdev, "ff init failed\n");
+			goto err_stop;
+		}
+	}
+	
+	if (drv_data->quirks & FTEC_TUNING_MENU) {
+		/* Open the device to receive reports with tuning menu data */
+		ret = hid_hw_open(hdev);
+		if (ret < 0) {
+			hid_err(hdev, "hw open failed\n");
+			goto err_stop;
 		}
 	}
 
@@ -250,6 +263,8 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 			hid_warn(hdev, "Unable to create sysfs interface for \"rumble\", errno %d\n", ret);
 	}
 	
+	
+
 	if (drv_data->quirks & FTEC_PEDALS) {
 		struct hid_input *hidinput = list_entry(hdev->inputs.next, struct hid_input, list);
 		struct input_dev *inputdev = hidinput->input;
@@ -267,8 +282,10 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 			hid_warn(hdev, "Unable to create sysfs interface for \"load\", errno %d\n", ret);
 	}
 
-   	return 0;
+	return 0;
 
+//err_close:
+//	hid_hw_close(hdev);
 err_stop:
 	hid_hw_stop(hdev);
 err_free:
@@ -279,23 +296,29 @@ err_free:
 static void ftec_remove(struct hid_device *hdev)
 {
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hdev);
- 
+    
+	if (drv_data->quirks & FTEC_PEDALS) {
+		device_remove_file(&hdev->dev, &dev_attr_load);
+		if (hdev->product == CLUBSPORT_PEDALS_V3_DEVICE_ID) {
+			device_remove_file(&hdev->dev, &dev_attr_rumble);
+		}
+	}
+
 	if (drv_data->quirks & FTEC_FF) {
 		ftecff_remove(hdev);
 	}
 
-	if (hdev->product == CSL_ELITE_WHEELBASE_DEVICE_ID ||
-	    hdev->product == CSL_ELITE_PS4_WHEELBASE_DEVICE_ID ||
-	    hdev->product == CLUBSPORT_PEDALS_V3_DEVICE_ID) {
-		device_remove_file(&hdev->dev, &dev_attr_rumble);
-	}
-
-        if (drv_data->quirks & FTEC_PEDALS) {
-		device_remove_file(&hdev->dev, &dev_attr_load);
-	}
-
+	hid_hw_close(hdev);
 	hid_hw_stop(hdev);
 	kfree(drv_data);
+}
+
+static int ftec_raw_event(struct hid_device *hdev, struct hid_report *report, u8 *data, int size) {
+	struct ftec_drv_data *drv_data = hid_get_drvdata(hdev);
+	if (drv_data->quirks & FTEC_FF) {
+		return ftecff_raw_event(hdev, report, data, size);
+	}
+	return 0;
 }
 
 static const struct hid_device_id devices[] = {
@@ -315,10 +338,11 @@ static const struct hid_device_id devices[] = {
 MODULE_DEVICE_TABLE(hid, devices);
 
 static struct hid_driver ftec_csl_elite = {
-		.name = "ftec_csl_elite",
-		.id_table = devices,
+	.name = "ftec_csl_elite",
+	.id_table = devices,
         .probe = ftec_probe,
         .remove = ftec_remove,
+	.raw_event = ftec_raw_event,
 };
 module_hid_driver(ftec_csl_elite)
 
