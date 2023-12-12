@@ -16,12 +16,12 @@
 #define CSR_ELITE_WHEELBASE_DEVICE_ID 0x0011
 
 // wheels
-#define CSL_STEERING_WHEEL_P1_V2 0x0008
-#define CSL_ELITE_STEERING_WHEEL_WRC_ID 0x0112
-#define CSL_ELITE_STEERING_WHEEL_MCLAREN_GT3_V2_ID 0x280b
-#define CLUBSPORT_STEERING_WHEEL_F1_IS_ID 0x1102
-#define CLUBSPORT_STEERING_WHEEL_FORMULA_V2_ID 0x280a
-#define PODIUM_STEERING_WHEEL_PORSCHE_911_GT3_R_ID 0x050c
+#define CSL_STEERING_WHEEL_P1_V2 0x08
+#define CSL_ELITE_STEERING_WHEEL_WRC_ID 0x12
+#define CSL_ELITE_STEERING_WHEEL_MCLAREN_GT3_V2_ID 0x0b
+#define CLUBSPORT_STEERING_WHEEL_F1_IS_ID 0x12
+#define CLUBSPORT_STEERING_WHEEL_FORMULA_V2_ID 0x0a
+#define PODIUM_STEERING_WHEEL_PORSCHE_911_GT3_R_ID 0x0c
 
 
 // quirks
@@ -31,9 +31,13 @@
 #define FTEC_HIGHRES		0x008
 #define FTEC_TUNING_MENU	0x010
 
+// report sizes
+#define FTEC_TUNING_REPORT_SIZE 64
+#define FTEC_WHEEL_REPORT_SIZE 34
 
+
+// misc
 #define LEDS 9
-#define NUM_TUNING_SLOTS 5
 #define FTECFF_MAX_EFFECTS 16
 
 
@@ -91,6 +95,9 @@ struct ftec_drv_data {
 	u16 led_state;
 	struct led_classdev *led[LEDS];
 #endif    
+	// the data from the last update we got from the device, shifted by 1
+	u8 ftec_tuning_data[FTEC_TUNING_REPORT_SIZE];
+	u8 wheel_id;
 };
 
 #endif
