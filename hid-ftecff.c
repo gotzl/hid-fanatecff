@@ -1423,9 +1423,15 @@ int ftecff_raw_event(struct hid_device *hdev, struct hid_report *report, u8 *dat
 	if (data[0] == 0xff && size == FTEC_TUNING_REPORT_SIZE) {
 		// shift by 1 so that we can use this as the buffer when writing back to the device
 		memcpy(&drv_data->ftec_tuning_data[0] + 1, data, sizeof(drv_data->ftec_tuning_data) - 1);
+		// notify userspace about value change
+		kobject_uevent(&hdev->dev.kobj, KOBJ_CHANGE);
 	} else if (data[0] == 0x01) {
 		// TODO: detect wheel change and react on it in some way?
-		drv_data->wheel_id = data[0x1f];	
+		bool changed = drv_data->wheel_id != data[0x1f];
+		drv_data->wheel_id = data[0x1f];
+		// notify userspace about value change
+		if (changed)
+			kobject_uevent(&hdev->dev.kobj, KOBJ_CHANGE);
 	}
 	return 0;
 }
