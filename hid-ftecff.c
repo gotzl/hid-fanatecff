@@ -846,7 +846,7 @@ static __always_inline void ftecff_update_state(struct ftecff_effect_state *stat
 	}
 }
 
-void ftecff_update_slot(struct ftecff_slot *slot, struct ftecff_effect_parameters *parameters)
+void ftecff_update_slot(struct ftecff_slot *slot, struct ftecff_effect_parameters *parameters, const bool highres)
 {
 	u8 original_cmd[7];
 	unsigned short i;
@@ -881,13 +881,22 @@ void ftecff_update_slot(struct ftecff_slot *slot, struct ftecff_effect_parameter
 
 #define CLAMP_VALUE_U16(x) ((unsigned short)((x) > 0xffff ? 0xffff : (x)))
 #define CLAMP_VALUE_S16(x) ((unsigned short)((x) <= -0x8000 ? -0x8000 : ((x) > 0x7fff ? 0x7fff : (x))))
-#define TRANSLATE_FORCE(x) ((CLAMP_VALUE_S16(x) + 0x8000) >> 8)
+#define TRANSLATE_FORCE(x, bits) ((CLAMP_VALUE_S16(x) + 0x8000) >> (16 - bits))
 #define SCALE_COEFF(x, bits) SCALE_VALUE_U16(abs(x) * 2, bits)
 #define SCALE_VALUE_U16(x, bits) (CLAMP_VALUE_U16(x) >> (16 - bits))
 
 	switch (slot->effect_type) {
 		case FF_CONSTANT:
-			slot->current_cmd[2] = TRANSLATE_FORCE(parameters->level);
+			if (highres) {
+				d1 = TRANSLATE_FORCE(parameters->level, 16);
+				slot->current_cmd[2] = d1&0xff;
+				slot->current_cmd[3] = (d1>>8)&0xff;
+				slot->current_cmd[6] = 0x01;
+			} else {
+				slot->current_cmd[2] = TRANSLATE_FORCE(parameters->level, 8);
+			}
+			// dbg_hid("constant: %i 0x%x 0x%x 0x%x\n",
+			//	parameters->level, slot->current_cmd[2], slot->current_cmd[3], slot->current_cmd[6]);
 			break;
 		case FF_SPRING:
 			d1 = SCALE_VALUE_U16(((parameters->d1) + 0x8000) & 0xffff, 11);
@@ -1097,7 +1106,7 @@ static __always_inline int ftecff_timer(struct ftec_drv_data *drv_data)
 
 	for (i = 0; i < 5; i++) {
 		slot = &drv_data->slots[i];
-		ftecff_update_slot(slot, &parameters[i]);
+		ftecff_update_slot(slot, &parameters[i], drv_data->quirks & FTEC_HIGHRES);
 		if (slot->is_updated) {
 			ftecff_send_cmd(drv_data, slot->current_cmd);
 			slot->is_updated = 0;
@@ -1156,7 +1165,7 @@ static void ftecff_init_slots(struct ftec_drv_data *drv_data)
 
 	for (i = 0; i < 5; i++) {
 		drv_data->slots[i].id = i;
-		ftecff_update_slot(&drv_data->slots[i], &parameters);
+		ftecff_update_slot(&drv_data->slots[i], &parameters, drv_data->quirks & FTEC_HIGHRES);
 		ftecff_send_cmd(drv_data, drv_data->slots[i].current_cmd);
 		drv_data->slots[i].is_updated = 0;
 	}

@@ -28,6 +28,8 @@
 #define FTEC_FF                 0x001
 #define FTEC_PEDALS             0x002
 #define FTEC_WHEELBASE_LEDS     0x004
+#define FTEC_HIGHRES		0x008
+#define FTEC_TUNING_MENU	0x010
 
 
 #define LEDS 9
