@@ -83,6 +83,7 @@ static void ftec_set_rumble(struct hid_device *hid, u32 val)
 	struct ftec_drv_data *drv_data;
 	unsigned long flags;
 	s32 *value;
+	int i;
 
 	dbg_hid(" ... set_rumble %02X\n", val);
 
@@ -98,11 +99,19 @@ static void ftec_set_rumble(struct hid_device *hid, u32 val)
 	value[0] = 0xf8;
 	value[1] = 0x09;
 	value[2] = 0x01;
-	value[3] = 0x04;
+	value[3] = drv_data->quirks & FTEC_PEDALS ? 0x04 : 0x03;
 	value[4] = (val>>16)&0xff;
 	value[5] = (val>>8)&0xff;
 	value[6] = (val)&0xff;
-	
+
+	// TODO: see ftecff.c::fix_values
+	if (!(drv_data->quirks & FTEC_PEDALS)) {
+		for(i=0;i<7;i++) {
+			if (value[i]>=0x80)
+				value[i] = -0x100 + value[i];
+		}
+	}
+
 	hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
 	spin_unlock_irqrestore(&drv_data->report_lock, flags);
 }
@@ -146,7 +155,7 @@ static ssize_t ftec_rumble_store(struct device *dev, struct device_attribute *at
 	}
 	return count;
 }
-static DEVICE_ATTR(rumble, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, NULL, ftec_rumble_store);
+static DEVICE_ATTR(rumble, S_IWUSR | S_IWGRP, NULL, ftec_rumble_store);
 
 static int ftec_init(struct hid_device *hdev) {
 	struct list_head *report_list = &hdev->report_enum[HID_OUTPUT_REPORT].report_list;
@@ -183,7 +192,7 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 	__u8 iface_num = iface->cur_altsetting->desc.bInterfaceNumber;
 	struct ftec_drv_data *drv_data;
 	unsigned int connect_mask = HID_CONNECT_DEFAULT;
-    int ret;
+    	int ret;
 
 	dbg_hid("%s: ifnum %d\n", __func__, iface_num);
 
@@ -192,7 +201,7 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 		hid_err(hdev, "Insufficient memory, cannot allocate driver data\n");
 		return -ENOMEM;
 	}
-    drv_data->quirks = id->driver_data;
+    	drv_data->quirks = id->driver_data;
 	drv_data->min_range = 90;
 	drv_data->max_range = 1080;
 	if (hdev->product == CLUBSPORT_V2_WHEELBASE_DEVICE_ID || 
@@ -209,9 +218,9 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 		goto err_free;
 	}
 
-    if (drv_data->quirks & FTEC_FF) {
-        connect_mask &= ~HID_CONNECT_FF;
-    }
+	if (drv_data->quirks & FTEC_FF) {
+		connect_mask &= ~HID_CONNECT_FF;
+	}
 
 	ret = hid_hw_start(hdev, connect_mask);
 	if (ret) {
@@ -225,15 +234,23 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 		goto err_stop;
 	}
 
-    if (drv_data->quirks & FTEC_FF) {
-        ret = ftecff_init(hdev);
-        if (ret) {
-            hid_err(hdev, "ff init failed\n");
-            goto err_stop;
-        }
-    }
+	if (drv_data->quirks & FTEC_FF) {
+		ret = ftecff_init(hdev);
+		if (ret) {
+		    	hid_err(hdev, "ff init failed\n");
+		    	goto err_stop;
+		}
+	}
 
-    if (drv_data->quirks & FTEC_PEDALS) {
+	if (hdev->product == CSL_ELITE_WHEELBASE_DEVICE_ID ||
+	    hdev->product == CSL_ELITE_PS4_WHEELBASE_DEVICE_ID ||
+	    hdev->product == CLUBSPORT_PEDALS_V3_DEVICE_ID) {
+		ret = device_create_file(&hdev->dev, &dev_attr_rumble);
+		if (ret)
+			hid_warn(hdev, "Unable to create sysfs interface for \"rumble\", errno %d\n", ret);
+	}
+	
+	if (drv_data->quirks & FTEC_PEDALS) {
 		struct hid_input *hidinput = list_entry(hdev->inputs.next, struct hid_input, list);
 		struct input_dev *inputdev = hidinput->input;
 
@@ -245,18 +262,12 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 			ftec_set_load(hdev, init_load);
 		}
 
-        ret = device_create_file(&hdev->dev, &dev_attr_load);
-        if (ret)
-            hid_warn(hdev, "Unable to create sysfs interface for \"load\", errno %d\n", ret);
+		ret = device_create_file(&hdev->dev, &dev_attr_load);
+		if (ret)
+			hid_warn(hdev, "Unable to create sysfs interface for \"load\", errno %d\n", ret);
+	}
 
-		if (hdev->product == CLUBSPORT_PEDALS_V3_DEVICE_ID) {
-			ret = device_create_file(&hdev->dev, &dev_attr_rumble);
-			if (ret)
-				hid_warn(hdev, "Unable to create sysfs interface for \"rumble\", errno %d\n", ret);
-		}
-    }
-
-    return 0;
+   	return 0;
 
 err_stop:
 	hid_hw_stop(hdev);
@@ -268,17 +279,20 @@ err_free:
 static void ftec_remove(struct hid_device *hdev)
 {
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hdev);
-    
-    if (drv_data->quirks & FTEC_PEDALS) {
-        device_remove_file(&hdev->dev, &dev_attr_load);
-		if (hdev->product == CLUBSPORT_PEDALS_V3_DEVICE_ID) {
-			device_remove_file(&hdev->dev, &dev_attr_rumble);
-		}
-    }
+ 
+	if (drv_data->quirks & FTEC_FF) {
+		ftecff_remove(hdev);
+	}
 
-    if (drv_data->quirks & FTEC_FF) {
-        ftecff_remove(hdev);
-    }
+	if (hdev->product == CSL_ELITE_WHEELBASE_DEVICE_ID ||
+	    hdev->product == CSL_ELITE_PS4_WHEELBASE_DEVICE_ID ||
+	    hdev->product == CLUBSPORT_PEDALS_V3_DEVICE_ID) {
+		device_remove_file(&hdev->dev, &dev_attr_rumble);
+	}
+
+        if (drv_data->quirks & FTEC_PEDALS) {
+		device_remove_file(&hdev->dev, &dev_attr_load);
+	}
 
 	hid_hw_stop(hdev);
 	kfree(drv_data);
