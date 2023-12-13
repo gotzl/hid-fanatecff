@@ -6,7 +6,7 @@ GOTO="fanatec_end"
 LABEL="ftec_module_settings"
 # let everyone in games group read/write device attributes, such as tuning-menu entries, range, display, LEDs
 # FIXME: this should be narrowed down in the future!
-RUN+="/bin/sh -c 'cd %S%p && chown :games range display load rumble leds/*/brightness'"
+RUN+="/bin/sh -c 'cd %S%p && chown :games range display load rumble leds/*/brightness && chmod 660 leds/*/brightness'"
 GOTO="fanatec_end"
 
 LABEL="ftec_input_settings"
