@@ -263,8 +263,6 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 			hid_warn(hdev, "Unable to create sysfs interface for \"rumble\", errno %d\n", ret);
 	}
 	
-	
-
 	if (drv_data->quirks & FTEC_PEDALS) {
 		struct hid_input *hidinput = list_entry(hdev->inputs.next, struct hid_input, list);
 		struct input_dev *inputdev = hidinput->input;
@@ -299,11 +297,14 @@ static void ftec_remove(struct hid_device *hdev)
     
 	if (drv_data->quirks & FTEC_PEDALS) {
 		device_remove_file(&hdev->dev, &dev_attr_load);
-		if (hdev->product == CLUBSPORT_PEDALS_V3_DEVICE_ID) {
-			device_remove_file(&hdev->dev, &dev_attr_rumble);
-		}
 	}
 
+	if (hdev->product == CSL_ELITE_WHEELBASE_DEVICE_ID ||
+	    hdev->product == CSL_ELITE_PS4_WHEELBASE_DEVICE_ID ||
+	    hdev->product == CLUBSPORT_PEDALS_V3_DEVICE_ID) {
+		device_remove_file(&hdev->dev, &dev_attr_rumble);
+	}
+	
 	if (drv_data->quirks & FTEC_FF) {
 		ftecff_remove(hdev);
 	}
