@@ -1,12 +1,17 @@
 ACTION!="add", GOTO="fanatec_end"
-SUBSYSTEMS=="usb|input|hid", ATTRS{idVendor}=="0eb7", GOTO="fanatec_vendor"
+SUBSYSTEM=="hid", DRIVER=="ftec_csl_elite", GOTO="ftec_module_settings"
+SUBSYSTEM=="input", DRIVERS=="ftec_csl_elite", GOTO="ftec_input_settings"
 GOTO="fanatec_end"
 
-LABEL="fanatec_vendor"
+LABEL="ftec_module_settings"
+# let everyone in games group read/write device attributes, such as tuning-menu entries, range, display, LEDs
+# FIXME: this should be narrowed down in the future!
+RUN+="/bin/sh -c 'cd %S%p && chown :games range display load rumble leds/*/brightness'"
+GOTO="fanatec_end"
 
+LABEL="ftec_input_settings"
 # remove deadzone/fuzz
-ATTRS{idProduct}=="0001|0004|0005|0006|0007|0011|0020|6204|0e03",  ATTRS{idVendor}=="0eb7", RUN{program}+="/usr/bin/evdev-joystick --evdev $devnode --deadzone 0 --fuzz 0"
-# set access rights
-SUBSYSTEM=="usb|input|hid", GROUP:="plugdev"
+RUN{program}+="/usr/bin/evdev-joystick --evdev $devnode --deadzone 0 --fuzz 0"
+GOTO="fanatec_end"
 
 LABEL="fanatec_end"
