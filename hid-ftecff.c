@@ -869,8 +869,8 @@ void ftecff_update_slot(struct ftecff_slot *slot, struct ftecff_effect_parameter
 		slot->current_cmd[0] |= 0x2;
 		// reset values
 		if (slot->effect_type != FF_CONSTANT && slot->effect_type != FF_SPRING) {
-			slot->current_cmd[2] = 0x08;
-			slot->current_cmd[4] = 0x08;
+			slot->current_cmd[2] = 0x00;
+			slot->current_cmd[4] = 0x00;
 			slot->current_cmd[6] = 0xff;
 		}
 		if (original_cmd[0] != slot->current_cmd[0]) {
