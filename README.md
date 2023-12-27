@@ -7,7 +7,7 @@ The Wheel Base should be set to 'PC mode' for the driver to be selected (CSL Eli
 * 0EB7:0E03 FANATEC CSL Elite Wheel Base
 * 0EB7:0005 FANATEC CSL Elite Wheel Base PS4
 * 0EB7:0020 FANATEC CSL DD / DD Pro / ClubSport DD Wheel Base
-* 0EB7:6204 FANATECCSL Pedals / CSL Elite Pedals
+* 0EB7:6204 FANATEC CSL Pedals / CSL Elite Pedals
 * (experimental: 0EB7:0001 FANATEC ClubSport Wheel Base V2)
 * (experimental: 0EB7:0004 FANATEC Wheel Base / ClubSport Wheel Base V2.5)
 * (experimental: 0EB7:183b FANATEC ClubSport Pedals V3)
