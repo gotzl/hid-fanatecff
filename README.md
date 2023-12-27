@@ -24,6 +24,12 @@ make
 sudo make install
 ```
 
+Reload the new udev rules, depending on the Linux distribution, without rebooting:
+
+```sh
+sudo udevadm control --reload-rules && sudo udevadm trigger
+```
+
 This installs the kernel module `hid-fanatec.ko` in the `hid` dir of the running kernel and puts `fanatec.rules` into `/etc/udev/rules.d`. These rules allows access to the device for `users` group and sets deadzone/fuzz to 0 so that any wheel input is detected immediately.
 The driver should get loaded automatically when the wheel is plugged.
 
@@ -50,6 +56,7 @@ Games I test (more or less regularly) and that are expected to work:
 * Dirt2 / WRC
 * rFactor2
 * F1 22/23
+* DiRT 4
 
 Games that don't work properly:
 
