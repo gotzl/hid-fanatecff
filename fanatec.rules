@@ -1,6 +1,7 @@
 ACTION!="add", GOTO="fanatec_end"
 SUBSYSTEM=="hid", DRIVER=="ftec_csl_elite", GOTO="ftec_module_settings"
 SUBSYSTEM=="input", DRIVERS=="ftec_csl_elite", GOTO="ftec_input_settings"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="0eb7", MODE="0666"
 GOTO="fanatec_end"
 
 LABEL="ftec_module_settings"
