@@ -50,18 +50,21 @@ Currently not supported effects: FF_FRICTION, FF_INERTIA
 
 ### FFB in specific Games
 
-Games I test (more or less regularly) and that are expected to work:
+Games that are expected to work (tested by me and others more or less regularly):
 
 * AC / ACC
-* Dirt2 / WRC
-* rFactor2
-* F1 22/23
+* Automobilista 2
 * DiRT 4
+* DiRT Rally 2 / WRC
+* F1 22/23
+* rFactor2
+* Rennsport
 
 Games that don't work properly:
 
 * F1 2020/2021 (#22)
 * BeamNG.drive (proton) (#23)
+* RRRE (#53)
 
 ### Device specific
 
