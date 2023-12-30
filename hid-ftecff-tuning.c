@@ -233,6 +233,7 @@ int ftec_tuning_classdev_register(struct device *parent,
 	}
 	if (hdev->product == CSL_ELITE_WHEELBASE_DEVICE_ID || 
 	    hdev->product == CSL_ELITE_PS4_WHEELBASE_DEVICE_ID ||
+	    hdev->product == CSL_DD_WHEELBASE_DEVICE_ID ||
 	    hdev->product == PODIUM_WHEELBASE_DD1_DEVICE_ID ||
 	    hdev->product == PODIUM_WHEELBASE_DD2_DEVICE_ID) {
 		CREATE_SYSFS_FILE(BLI)
@@ -246,6 +247,8 @@ int ftec_tuning_classdev_register(struct device *parent,
 		CREATE_SYSFS_FILE(NIN)
 		CREATE_SYSFS_FILE(INT)
 	}	
+	// FIXME: this is ClubSport DD specific, but not yet understood how
+	//  to discriminate these
 	if (hdev->product == CSL_DD_WHEELBASE_DEVICE_ID) {
 		CREATE_SYSFS_FILE(FUL)
 	}
@@ -277,6 +280,7 @@ void ftec_tuning_classdev_unregister(struct ftec_tuning_classdev *ftec_tuning_cd
 	}
 	if (hdev->product == CSL_ELITE_WHEELBASE_DEVICE_ID || 
 	    hdev->product == CSL_ELITE_PS4_WHEELBASE_DEVICE_ID ||
+	    hdev->product == CSL_DD_WHEELBASE_DEVICE_ID ||
 	    hdev->product == PODIUM_WHEELBASE_DD1_DEVICE_ID ||
 	    hdev->product == PODIUM_WHEELBASE_DD2_DEVICE_ID) {
 		REMOVE_SYSFS_FILE(BLI)

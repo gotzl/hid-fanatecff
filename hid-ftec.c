@@ -237,20 +237,20 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 		hid_err(hdev, "hw init failed\n");
 		goto err_stop;
 	}
-
-	if (drv_data->quirks & FTEC_FF) {
-		ret = ftecff_init(hdev);
-		if (ret) {
-			hid_err(hdev, "ff init failed\n");
-			goto err_stop;
-		}
-	}
 	
 	if (drv_data->quirks & FTEC_TUNING_MENU) {
 		/* Open the device to receive reports with tuning menu data */
 		ret = hid_hw_open(hdev);
 		if (ret < 0) {
 			hid_err(hdev, "hw open failed\n");
+			goto err_stop;
+		}
+	}
+
+	if (drv_data->quirks & FTEC_FF) {
+		ret = ftecff_init(hdev);
+		if (ret) {
+			hid_err(hdev, "ff init failed\n");
 			goto err_stop;
 		}
 	}

@@ -1046,12 +1046,13 @@ static void ftecff_destroy(struct ff_device *ff)
 
 int ftecff_init(struct hid_device *hdev) {
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hdev);
-    struct hid_input *hidinput = list_entry(hdev->inputs.next, struct hid_input, list);
-    struct input_dev *inputdev = hidinput->input;
+	struct hid_input *hidinput = list_entry(hdev->inputs.next, struct hid_input, list);
+	struct input_dev *inputdev = hidinput->input;
 	struct ff_device *ff;
+	unsigned long flags;
 	int ret,j;
 
-    dbg_hid(" ... setting FF bits");
+	dbg_hid(" ... setting FF bits");
 	for (j = 0; ftecff_wheel_effects[j] >= 0; j++)
 		set_bit(ftecff_wheel_effects[j], inputdev->ffbit);
 
@@ -1064,15 +1065,52 @@ int ftecff_init(struct hid_device *hdev) {
 	ff = hidinput->input->ff;
 	ff->upload = ftecff_upload_effect;
 	ff->playback = ftecff_play_effect;
-	ff->destroy = ftecff_destroy;	
+	ff->destroy = ftecff_destroy;
 
-	/* Set range so that centering spring gets disabled */
-	if (init_range > 0 && (init_range > drv_data->max_range || init_range < drv_data->min_range)) {
-		hid_warn(hdev, "Invalid init_range %i; using max range of %i instead\n", init_range, drv_data->max_range);
-		init_range = -1;
+	/* init sequence */
+	{
+		/* tuning menu initialization? */
+		if (drv_data->quirks & FTEC_TUNING_MENU) {
+			u8 buf[] = { 0xff, 0x08, 0x01, 0xff, 0x0, 0x0, 0x0, 0x0 };
+			ret = hid_hw_output_report(hdev, &buf[0], 8);
+			buf[2] = 0x2;
+			buf[3] = 0x0;
+			ret = hid_hw_output_report(hdev, &buf[0], 8);
+			// FIXME: does this work to fetch current tuning menu values?
+			buf[1] = 0x03;
+			buf[2] = 0x02;
+			ret = hid_hw_output_report(hdev, &buf[0], 8);
+		}
+
+		/* common initialization? */
+		spin_lock_irqsave(&drv_data->report_lock, flags);
+		s32 *value = drv_data->report->field[0]->value;
+		value[0] = 0xf8;
+		value[1] = 0x09;
+		value[2] = 0x01;
+		value[3] = 0x06;
+		value[4] = 0xff;
+		value[5] = 0x01;
+		value[6] = 0x00;
+		send_report_request_to_device(drv_data);
+		value[5] = 0x0;
+		send_report_request_to_device(drv_data);
+		value[5] = 0x4;
+		send_report_request_to_device(drv_data);
+		spin_unlock_irqrestore(&drv_data->report_lock, flags);
 	}
-	drv_data->range = init_range > 0 ? init_range : drv_data->max_range;
-	ftec_set_range(hdev, drv_data->range);
+
+	/* FIXME: not sure if this is still required */
+	if (!(drv_data->quirks & FTEC_TUNING_MENU)) {
+		printk(KERN_INFO "ftecff: no tuning menu\n");
+		/* Set range so that centering spring gets disabled */
+		if (init_range > 0 && (init_range > drv_data->max_range || init_range < drv_data->min_range)) {
+			hid_warn(hdev, "Invalid init_range %i; using max range of %i instead\n", init_range, drv_data->max_range);
+			init_range = -1;
+		}
+		drv_data->range = init_range > 0 ? init_range : drv_data->max_range;
+		ftec_set_range(hdev, drv_data->range);
+	}
 
 	/* Create sysfs interface */
 #define CREATE_SYSFS_FILE(name) \
