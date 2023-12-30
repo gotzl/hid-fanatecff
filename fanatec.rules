@@ -1,4 +1,4 @@
-ACTION!="add", GOTO="fanatec_end"
+ACTION!="add|change", GOTO="fanatec_end"
 SUBSYSTEM=="hid", DRIVER=="ftec_csl_elite", GOTO="ftec_module_settings"
 SUBSYSTEM=="input", DRIVERS=="ftec_csl_elite", GOTO="ftec_input_settings"
 SUBSYSTEMS=="usb", ATTRS{idVendor}=="0eb7", MODE="0666"
@@ -7,7 +7,7 @@ GOTO="fanatec_end"
 LABEL="ftec_module_settings"
 # let everyone in games group read/write device attributes, such as tuning-menu entries, range, display, LEDs
 # FIXME: this should be narrowed down in the future!
-RUN+="/bin/sh -c 'cd %S%p; chown -f :games range display load rumble leds/*/brightness; chmod -f 660 leds/*/brightness'"
+RUN+="/bin/sh -c 'cd %S%p; chown -f :games range display load rumble leds/*/brightness tuning_menu/*; chmod -f 660 leds/*/brightness'"
 GOTO="fanatec_end"
 
 LABEL="ftec_input_settings"

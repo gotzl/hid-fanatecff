@@ -43,19 +43,14 @@ static int profile = 1;
 module_param(profile, int, 0660);
 MODULE_PARM_DESC(profile, "Enable profile debug messages.");
 
-#define FTEC_TUNING_REPORT_SIZE 64
-#define FTEC_WHEEL_REPORT_SIZE 34
-
-#define ADDR_SLOT 	0x02
-#define ADDR_SEN 	0x03
-#define ADDR_FF 	0x04
-#define ADDR_SHO 	0x05
-#define ADDR_BLI 	0x06
-#define ADDR_DRI 	0x09
-#define ADDR_FOR 	0x0a
-#define ADDR_SPR 	0x0b
-#define ADDR_DPR 	0x0c
-#define ADDR_FEI 	0x11
+int ftec_tuning_classdev_register(struct device *parent, 
+		struct ftec_tuning_classdev *ftec_tuning_cdev);
+void ftec_tuning_classdev_unregister(struct ftec_tuning_classdev *ftec_tuning_cdev);
+ssize_t _ftec_tuning_show(struct device *dev,
+		enum ftec_tuning_attrs_enum id, char *buf);
+ssize_t _ftec_tuning_store(struct device *dev,
+		enum ftec_tuning_attrs_enum id,
+		const char *buf, size_t count);
 
 static const signed short ftecff_wheel_effects[] = {
 	FF_CONSTANT,
@@ -243,8 +238,14 @@ static ssize_t ftec_range_show(struct device *dev, struct device_attribute *attr
 				char *buf)
 {
 	struct hid_device *hid = to_hid_device(dev);
-	struct ftec_drv_data *drv_data;
+	struct ftec_drv_data *drv_data = hid_get_drvdata(hid);
 	size_t count;
+
+	/* new wheelbases have tuning menu, so use this to get the range */
+	if (drv_data->quirks & FTEC_TUNING_MENU) {
+		count = _ftec_tuning_show(dev, SEN, buf);
+		return count;
+	}
 
 	drv_data = hid_get_drvdata(hid);
 	if (!drv_data) {
@@ -259,11 +260,17 @@ static ssize_t ftec_range_show(struct device *dev, struct device_attribute *attr
 /* Set range to user specified value, call appropriate function
  * according to the type of the wheel */
 static ssize_t ftec_range_store(struct device *dev, struct device_attribute *attr,
-				 const char *buf, size_t count)
+				const char *buf, size_t count)
 {
 	struct hid_device *hid = to_hid_device(dev);
-	struct ftec_drv_data *drv_data;
+	struct ftec_drv_data *drv_data = hid_get_drvdata(hid);
 	u16 range;
+
+	/* new wheelbases have tuning menu, so use this to set the range */
+	if (drv_data->quirks & FTEC_TUNING_MENU) {
+		count = _ftec_tuning_store(dev, SEN, buf, count);
+		return count;
+	}
 
 	if (kstrtou16(buf, 0, &range) != 0) {
 		hid_err(hid, "Invalid range %s!\n", buf);
@@ -292,55 +299,16 @@ static DEVICE_ATTR(range, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_
 
 
 /* Export the current wheel id */
-static ssize_t ftec_wheel_show(struct device *dev, struct device_attribute *attr,
-				char *buf)
+static ssize_t ftec_wheel_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	struct hid_device *hid = to_hid_device(dev);
-	struct usb_device *udev = interface_to_usbdev(to_usb_interface(hid->dev.parent));
-	u8 *buffer = kcalloc(FTEC_WHEEL_REPORT_SIZE, sizeof(u8), GFP_KERNEL);
-	size_t count = 0;
-	int ret, actual_len;
-	u16 wheel_id;
-    	
-	// request current values
-	buffer[0] = 0x01;
-	buffer[1] = 0xf8;
-	buffer[2] = 0x09;
-	buffer[3] = 0x01;
-	buffer[4] = 0x06;
-
-	ret = hid_hw_output_report(hid, buffer, 8);
-	if (ret < 0) {
-		kfree(buffer);
-		return count;
-	}
-
-	// FXIME: again ... (values only update 2nd time?)
-	ret = hid_hw_output_report(hid, buffer, 8);
-	if (ret < 0) {
-		kfree(buffer);
-		return count;
-	}
-
-	// reset memory
-	memset((void*)buffer, 0, FTEC_WHEEL_REPORT_SIZE); 
-
-	// read values
-	ret = usb_interrupt_msg(udev, usb_rcvintpipe(udev, 81),
-				buffer, FTEC_WHEEL_REPORT_SIZE, &actual_len,
-				USB_CTRL_SET_TIMEOUT);
-
-	memcpy((void*)&wheel_id, &buffer[0x1e], sizeof(u16));
-	kfree(buffer);
-
-	count = scnprintf(buf, PAGE_SIZE, "0x%04x\n", wheel_id);
-	return count;
+	struct ftec_drv_data *drv_data = hid_get_drvdata(to_hid_device(dev));
+	return scnprintf(buf, PAGE_SIZE, "0x%02x\n", drv_data->wheel_id);
 }
 static DEVICE_ATTR(wheel_id, S_IRUSR | S_IRGRP | S_IROTH, ftec_wheel_show, NULL);
 
 
 static ssize_t ftec_set_display(struct device *dev, struct device_attribute *attr,
-				 const char *buf, size_t count)
+				const char *buf, size_t count)
 {
 	struct hid_device *hid = to_hid_device(dev);
 	struct ftec_drv_data *drv_data;
@@ -403,183 +371,6 @@ static ssize_t ftec_set_display(struct device *dev, struct device_attribute *att
 	return count;
 }
 static DEVICE_ATTR(display, S_IWUSR | S_IWGRP, NULL, ftec_set_display);
-
-static int ftec_tuning_read(struct hid_device *hid, u8 *buf) {
-	struct usb_device *dev = interface_to_usbdev(to_usb_interface(hid->dev.parent));
-	int ret, actual_len;
-    	
-	// request current values
-	buf[0] = 0xff;
-	buf[1] = 0x03;
-	buf[2] = 0x02;
-
-	ret = hid_hw_output_report(hid, buf, FTEC_TUNING_REPORT_SIZE);
-	if (ret < 0)
-		goto out;
-
-	// reset memory
-	memset((void*)buf, 0, FTEC_TUNING_REPORT_SIZE); 
-
-	// read values
-	ret = usb_interrupt_msg(dev, usb_rcvintpipe(dev, 81),
-				buf, FTEC_TUNING_REPORT_SIZE, &actual_len,
-				USB_CTRL_SET_TIMEOUT);
-out:
-	return ret;
-}
-
-static int ftec_tuning_write(struct hid_device *hid, int addr, int val) {
-	u8 *buf = kcalloc(FTEC_TUNING_REPORT_SIZE+1, sizeof(u8), GFP_KERNEL);
-	int ret;
-    	
-	// shift by 1 so that values are at correct location for write back
-	if (ftec_tuning_read(hid, buf+1) < 0)
-		goto out;
-
-	dbg_hid(" ... ftec_tuning_write %i; current: %i; new:%i\n", addr, buf[addr+1], val);
-
-	// update requested value and write back
-	buf[0] = 0xff;
-	buf[1] = 0x03;
-	buf[2] = 0x00;
-	buf[addr+1] = val;
-	ret = hid_hw_output_report(hid, buf, FTEC_TUNING_REPORT_SIZE);
-
-out:
-    kfree(buf);
-	return 0;
-}
-
-static int ftec_tuning_select(struct hid_device *hid, int slot) {
-	u8 *buf = kcalloc(FTEC_TUNING_REPORT_SIZE, sizeof(u8), GFP_KERNEL);
-    int ret;
-    	
-	if (ftec_tuning_read(hid, buf) < 0)
-		goto out;
-		
-	// return if already selected
-	if (buf[ADDR_SLOT] == slot || slot<=0 || slot>NUM_TUNING_SLOTS) {
-		dbg_hid(" ... ftec_tuning_select slot already selected or invalid value; current: %i; new:%i\n", buf[ADDR_SLOT], slot);
-		goto out;
-	}
-
-	dbg_hid(" ... ftec_tuning_select current: %i; new:%i\n", buf[ADDR_SLOT], slot);
-
-	// reset memory
-	memset((void*)buf, 0, FTEC_TUNING_REPORT_SIZE); 
-
-	buf[0] = 0xff;
-	buf[1] = 0x03;
-	buf[2] = 0x01;
-	buf[3] = slot&0xff;
-
-	ret = hid_hw_output_report(hid, buf, FTEC_TUNING_REPORT_SIZE);
-	if (ret < 0)
-		goto out;
-
-out:
-    kfree(buf);
-	return 0;
-}
-
-
-static int ftec_tuning_get_addr(struct device_attribute *attr) {
-	int type = 0;
-	if(strcmp(attr->attr.name, "SLOT") == 0)
-		type = ADDR_SLOT;
-	else if(strcmp(attr->attr.name, "SEN") == 0)
-		type = ADDR_SEN;
-	else if(strcmp(attr->attr.name, "FF") == 0)
-		type = ADDR_FF;
-	else if(strcmp(attr->attr.name, "DRI") == 0)
-		type = ADDR_DRI;
-	else if(strcmp(attr->attr.name, "FEI") == 0)
-		type = ADDR_FEI;
-	else if(strcmp(attr->attr.name, "FOR") == 0)
-		type = ADDR_FOR;
-	else if(strcmp(attr->attr.name, "SPR") == 0)
-		type = ADDR_SPR;
-	else if(strcmp(attr->attr.name, "DPR") == 0)
-		type = ADDR_DPR;
-	else if(strcmp(attr->attr.name, "BLI") == 0)
-		type = ADDR_BLI;												
-	else if(strcmp(attr->attr.name, "SHO") == 0)
-		type = ADDR_SHO;
-	else {
-		dbg_hid("Unknown attribute %s\n", attr->attr.name);
-	}
-	return type;
-}
-
-static ssize_t ftec_tuning_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	struct hid_device *hid = to_hid_device(dev);
-	u8 *buffer = kcalloc(FTEC_TUNING_REPORT_SIZE, sizeof(u8), GFP_KERNEL);
-	int addr = ftec_tuning_get_addr(attr);
-	size_t count = 0;
-	s8 value = 0;
-
-	dbg_hid(" ... ftec_tuning_show %s, %x\n", attr->attr.name, addr);
-
-	if (addr > 0 && ftec_tuning_read(hid, buffer) >= 0) {
-		memcpy((void*)&value, &buffer[addr], sizeof(s8));
-		count = scnprintf(buf, PAGE_SIZE, "%i\n", value);
-	}
-	kfree(buffer);
-	return count;
-}
-
-static ssize_t ftec_tuning_store(struct device *dev, struct device_attribute *attr,
-				 const char *buf, size_t count)
-{
-	struct hid_device *hid = to_hid_device(dev);
-	int addr;
-	s16 val;
-
-	if (kstrtos16(buf, 0, &val) != 0) {
-		hid_err(hid, "Invalid value %s!\n", buf);
-		return -EINVAL;
-	}
-	dbg_hid(" ... ftec_tuning_store %s %i\n", attr->attr.name, val);
-
-	addr = ftec_tuning_get_addr(attr);
-	if (addr == ADDR_SLOT) {
-		ftec_tuning_select(hid, val);
-	} else if (addr > 0) {
-		ftec_tuning_write(hid, addr, val);
-	}
-	return count;
-}
-
-static ssize_t ftec_tuning_reset(struct device *dev, struct device_attribute *attr,
-				 const char *buf, size_t count)
-{
-	struct hid_device *hid = to_hid_device(dev);
-	u8 *buffer = kcalloc(FTEC_TUNING_REPORT_SIZE, sizeof(u8), GFP_KERNEL);
-	int ret;
-    	
-	// request current values
-	buffer[0] = 0xff;
-	buffer[1] = 0x03;
-	buffer[2] = 0x04;
-
-	ret = hid_hw_output_report(hid, buffer, FTEC_TUNING_REPORT_SIZE);
-	
-	return count;
-}
-
-static DEVICE_ATTR(RESET, S_IWUSR  | S_IWGRP, NULL, ftec_tuning_reset);
-static DEVICE_ATTR(SLOT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_tuning_show, ftec_tuning_store);
-static DEVICE_ATTR(SEN, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_tuning_show, ftec_tuning_store);
-static DEVICE_ATTR(FF, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_tuning_show, ftec_tuning_store);
-static DEVICE_ATTR(DRI, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_tuning_show, ftec_tuning_store);
-static DEVICE_ATTR(FEI, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_tuning_show, ftec_tuning_store);
-static DEVICE_ATTR(FOR, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_tuning_show, ftec_tuning_store);
-static DEVICE_ATTR(SPR, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_tuning_show, ftec_tuning_store);
-static DEVICE_ATTR(DPR, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_tuning_show, ftec_tuning_store);
-static DEVICE_ATTR(BLI, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_tuning_show, ftec_tuning_store);
-static DEVICE_ATTR(SHO, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_tuning_show, ftec_tuning_store);
-
 
 #ifdef CONFIG_LEDS_CLASS
 static void ftec_set_leds(struct hid_device *hid, u16 leds)
@@ -917,11 +708,11 @@ void ftecff_update_slot(struct ftecff_slot *slot, struct ftecff_effect_parameter
 			slot->current_cmd[2] = SCALE_COEFF(parameters->k1, 4);
 			slot->current_cmd[4] = SCALE_COEFF(parameters->k2, 4);
 			slot->current_cmd[6] = SCALE_VALUE_U16(parameters->clip, 8);
-			// dbg_hid("damper: %i %i %i %i %i %i %i %i\n",
-			// 	parameters->d1, parameters->d2, parameters->k1, parameters->k2, parameters->clip,
+			// dbg_hid("damper/friction/inertia: 0x%x %i %i %i %i %i %i %i %i\n",
+			//	slot->effect_type, parameters->d1, parameters->d2, parameters->k1, parameters->k2, parameters->clip,
 			// 	slot->current_cmd[2], slot->current_cmd[4], slot->current_cmd[6]);
 			break;
-		}
+	}
 
 	// check if slot needs to be updated
 	for(i = 0; i < 7; i++) {
@@ -995,7 +786,7 @@ static __always_inline int ftecff_calculate_periodic(struct ftecff_effect_state 
 }
 
 static __always_inline void ftecff_calculate_spring(struct ftecff_effect_state *state, struct ftecff_effect_parameters *parameters)
-{	
+{
 	struct ff_condition_effect *condition = &state->effect.u.condition[0];
 
 	parameters->d1 = ((int)condition->center) - condition->deadband / 2;
@@ -1255,12 +1046,13 @@ static void ftecff_destroy(struct ff_device *ff)
 
 int ftecff_init(struct hid_device *hdev) {
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hdev);
-    struct hid_input *hidinput = list_entry(hdev->inputs.next, struct hid_input, list);
-    struct input_dev *inputdev = hidinput->input;
+	struct hid_input *hidinput = list_entry(hdev->inputs.next, struct hid_input, list);
+	struct input_dev *inputdev = hidinput->input;
 	struct ff_device *ff;
+	unsigned long flags;
 	int ret,j;
 
-    dbg_hid(" ... setting FF bits");
+	dbg_hid(" ... setting FF bits");
 	for (j = 0; ftecff_wheel_effects[j] >= 0; j++)
 		set_bit(ftecff_wheel_effects[j], inputdev->ffbit);
 
@@ -1273,15 +1065,52 @@ int ftecff_init(struct hid_device *hdev) {
 	ff = hidinput->input->ff;
 	ff->upload = ftecff_upload_effect;
 	ff->playback = ftecff_play_effect;
-	ff->destroy = ftecff_destroy;	
+	ff->destroy = ftecff_destroy;
 
-	/* Set range so that centering spring gets disabled */
-	if (init_range > 0 && (init_range > drv_data->max_range || init_range < drv_data->min_range)) {
-		hid_warn(hdev, "Invalid init_range %i; using max range of %i instead\n", init_range, drv_data->max_range);
-		init_range = -1;
+	/* init sequence */
+	{
+		/* tuning menu initialization? */
+		if (drv_data->quirks & FTEC_TUNING_MENU) {
+			u8 buf[] = { 0xff, 0x08, 0x01, 0xff, 0x0, 0x0, 0x0, 0x0 };
+			ret = hid_hw_output_report(hdev, &buf[0], 8);
+			buf[2] = 0x2;
+			buf[3] = 0x0;
+			ret = hid_hw_output_report(hdev, &buf[0], 8);
+			// FIXME: does this work to fetch current tuning menu values?
+			buf[1] = 0x03;
+			buf[2] = 0x02;
+			ret = hid_hw_output_report(hdev, &buf[0], 8);
+		}
+
+		/* common initialization? */
+		spin_lock_irqsave(&drv_data->report_lock, flags);
+		s32 *value = drv_data->report->field[0]->value;
+		value[0] = 0xf8;
+		value[1] = 0x09;
+		value[2] = 0x01;
+		value[3] = 0x06;
+		value[4] = 0xff;
+		value[5] = 0x01;
+		value[6] = 0x00;
+		send_report_request_to_device(drv_data);
+		value[5] = 0x0;
+		send_report_request_to_device(drv_data);
+		value[5] = 0x4;
+		send_report_request_to_device(drv_data);
+		spin_unlock_irqrestore(&drv_data->report_lock, flags);
 	}
-	drv_data->range = init_range > 0 ? init_range : drv_data->max_range;
-	ftec_set_range(hdev, drv_data->range);
+
+	/* FIXME: not sure if this is still required */
+	if (!(drv_data->quirks & FTEC_TUNING_MENU)) {
+		printk(KERN_INFO "ftecff: no tuning menu\n");
+		/* Set range so that centering spring gets disabled */
+		if (init_range > 0 && (init_range > drv_data->max_range || init_range < drv_data->min_range)) {
+			hid_warn(hdev, "Invalid init_range %i; using max range of %i instead\n", init_range, drv_data->max_range);
+			init_range = -1;
+		}
+		drv_data->range = init_range > 0 ? init_range : drv_data->max_range;
+		ftec_set_range(hdev, drv_data->range);
+	}
 
 	/* Create sysfs interface */
 #define CREATE_SYSFS_FILE(name) \
@@ -1292,20 +1121,9 @@ int ftecff_init(struct hid_device *hdev) {
 	CREATE_SYSFS_FILE(display)
 	CREATE_SYSFS_FILE(range)
 	CREATE_SYSFS_FILE(wheel_id)
-	
 
-	if (hdev->product == CSL_ELITE_WHEELBASE_DEVICE_ID || hdev->product == CSL_ELITE_PS4_WHEELBASE_DEVICE_ID) {
-		CREATE_SYSFS_FILE(RESET)
-		CREATE_SYSFS_FILE(SLOT)
-		CREATE_SYSFS_FILE(SEN)
-		CREATE_SYSFS_FILE(FF)
-		CREATE_SYSFS_FILE(DRI)
-		CREATE_SYSFS_FILE(FEI)
-		CREATE_SYSFS_FILE(FOR)
-		CREATE_SYSFS_FILE(SPR)
-		CREATE_SYSFS_FILE(DPR)
-		CREATE_SYSFS_FILE(BLI)
-		CREATE_SYSFS_FILE(SHO)
+	if (drv_data->quirks & FTEC_TUNING_MENU) {
+		ftec_tuning_classdev_register(&hdev->dev, &drv_data->tuning);
 	}
 
 #ifdef CONFIG_LEDS_CLASS
@@ -1337,18 +1155,10 @@ void ftecff_remove(struct hid_device *hdev)
 	device_remove_file(&hdev->dev, &dev_attr_range);
 	device_remove_file(&hdev->dev, &dev_attr_wheel_id);
 
-	if (hdev->product == CSL_ELITE_WHEELBASE_DEVICE_ID || hdev->product == CSL_ELITE_PS4_WHEELBASE_DEVICE_ID) {
-		device_remove_file(&hdev->dev, &dev_attr_RESET);
-		device_remove_file(&hdev->dev, &dev_attr_SLOT);
-		device_remove_file(&hdev->dev, &dev_attr_SEN);
-		device_remove_file(&hdev->dev, &dev_attr_FF);
-		device_remove_file(&hdev->dev, &dev_attr_DRI);
-		device_remove_file(&hdev->dev, &dev_attr_FEI);
-		device_remove_file(&hdev->dev, &dev_attr_FOR);
-		device_remove_file(&hdev->dev, &dev_attr_SPR);
-		device_remove_file(&hdev->dev, &dev_attr_DPR);
-		device_remove_file(&hdev->dev, &dev_attr_BLI);
-		device_remove_file(&hdev->dev, &dev_attr_SHO);
+#define REMOVE_SYSFS_FILE(name) device_remove_file(&hdev->dev, &dev_attr_##name); \
+
+	if (drv_data->quirks & FTEC_TUNING_MENU) {
+		ftec_tuning_classdev_unregister(&drv_data->tuning);
 	}
 
 #ifdef CONFIG_LEDS_CLASS
@@ -1368,4 +1178,22 @@ void ftecff_remove(struct hid_device *hdev)
 		}
 	}
 #endif
+}
+
+int ftecff_raw_event(struct hid_device *hdev, struct hid_report *report, u8 *data, int size) {
+	struct ftec_drv_data *drv_data = hid_get_drvdata(hdev);
+	if (data[0] == 0xff && size == FTEC_TUNING_REPORT_SIZE) {
+		// shift by 1 so that we can use this as the buffer when writing back to the device
+		memcpy(&drv_data->tuning.ftec_tuning_data[0] + 1, data, sizeof(drv_data->tuning.ftec_tuning_data) - 1);
+		// notify userspace about value change
+		kobject_uevent(&drv_data->tuning.dev->kobj, KOBJ_CHANGE);
+	} else if (data[0] == 0x01) {
+		// TODO: detect wheel change and react on it in some way?
+		bool changed = drv_data->wheel_id != data[0x1f];
+		drv_data->wheel_id = data[0x1f];
+		// notify userspace about value change
+		if (changed)
+			kobject_uevent(&hdev->dev.kobj, KOBJ_CHANGE);
+	}
+	return 0;
 }
