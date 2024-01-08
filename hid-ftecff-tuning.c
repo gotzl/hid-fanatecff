@@ -201,7 +201,7 @@ FTEC_TUNING_ATTRS
 #undef FTEC_TUNING_ATTR
 
 
-static const struct class ftec_tuning_class = {
+static struct class ftec_tuning_class = {
 	.name = "ftec_tuning",
 };
 
@@ -210,8 +210,12 @@ int ftec_tuning_classdev_register(struct device *parent,
 {
 	struct hid_device *hdev = to_hid_device(parent);
 	int ret;
+	
+	ret = class_register(&ftec_tuning_class);
+	if (ret)
+		return 0;
 
-	ftec_tuning_cdev->dev = device_create(&ftec_tuning_class, parent, 0, NULL, "tuning_menu");
+	ftec_tuning_cdev->dev = device_create(&ftec_tuning_class, parent, 0, NULL, "%s", dev_name(&hdev->dev));
 
 #define CREATE_SYSFS_FILE(name) \
 	ret = device_create_file(ftec_tuning_cdev->dev, &dev_attr_##name); \
@@ -263,7 +267,7 @@ void ftec_tuning_classdev_unregister(struct ftec_tuning_classdev *ftec_tuning_cd
 
 	struct hid_device *hdev = to_hid_device(ftec_tuning_cdev->dev->parent);
 	
-#define REMOVE_SYSFS_FILE(name) device_remove_file(&hdev->dev, &dev_attr_##name); \
+#define REMOVE_SYSFS_FILE(name) device_remove_file(ftec_tuning_cdev->dev, &dev_attr_##name); \
 
 	REMOVE_SYSFS_FILE(RESET)
 	REMOVE_SYSFS_FILE(SLOT)
@@ -299,18 +303,5 @@ void ftec_tuning_classdev_unregister(struct ftec_tuning_classdev *ftec_tuning_cd
 	}
 
 	device_unregister(ftec_tuning_cdev->dev);
-}
-/*
-static int __init ftec_tuning_init(void)
-{
-	return class_register(&ftec_tuning_class);
-}
-
-static void __exit ftec_tuning_exit(void)
-{
 	class_unregister(&ftec_tuning_class);
 }
-
-subsys_initcall(ftec_tuning_init);
-module_exit(ftec_tuning_exit);
-*/
