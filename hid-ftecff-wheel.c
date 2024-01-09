@@ -9,6 +9,56 @@
 
 
 #ifdef CONFIG_LEDS_CLASS_MULTICOLOR
+static void ftec_wheel_set_led_mc(struct hid_device *hid, u16 led_state_mc[], u8 n_leds, bool rpm_leds)
+{
+	u8 *buf = kmalloc_array(FTEC_TUNING_REPORT_SIZE, sizeof(u8), GFP_KERNEL | __GFP_ZERO);
+	int j, ret, offset = rpm_leds ? 0 : 9;
+
+	buf[0] = 0xff;
+	buf[1] = 0x01;
+
+	buf[2] = rpm_leds ? 0x00 : 0x01;
+
+	for (j = 0; j < n_leds; j++) {
+		buf[3+(2*j)] = led_state_mc[offset+j] >> 8;
+		buf[3+(2*j)+1] = led_state_mc[offset+j] & 0xff;
+	}
+	ret = hid_hw_output_report(hid, &buf[0], FTEC_TUNING_REPORT_SIZE);
+}
+
+static int ftec_wheel_led_mc_set_brightness(struct led_classdev *cdev,
+        enum led_brightness brightness)
+{
+	struct device *dev = cdev->dev->parent->parent;
+	struct hid_device *hid = to_hid_device(dev);
+	struct ftec_drv_data *drv_data = hid_get_drvdata(hid);
+        struct led_classdev_mc *mc_cdev = lcdev_to_mccdev(cdev);
+        uint8_t red, green, blue;
+	int j, n;
+
+	if (!drv_data) {
+		hid_err(hid, "Device data not found.");
+		return -1;
+	}
+
+	for (j = 0; j < MAX_LEDS && j < drv_data->wheel.wheel->n_leds; j++) {
+		if (mc_cdev == drv_data->wheel.led_mc[j]) {
+			led_mc_calc_color_components(mc_cdev, brightness);
+			red = mc_cdev->subled_info[0].brightness;
+			green = mc_cdev->subled_info[1].brightness;
+			blue = mc_cdev->subled_info[2].brightness;
+
+			/* BGR565 encoding */
+			drv_data->wheel.led_state_mc[j] = ((u16)(blue >> (8-5)) << (6+5)) | ((u16)(green >> (8-6)) << 5) | (u16)(red >> (8-5));
+			/* FIXME: switch between RPM and FLAG leds */
+			n = j < 9 ? 9 : 6;
+			ftec_wheel_set_led_mc(hid, drv_data->wheel.led_state_mc, n, j < 9);
+			return 0;
+		}
+	}
+	return -1;
+}
+
 static int ftec_wheel_init_multicolor(struct hid_device *hid,
 		struct ftec_wheel_classdev *ftec_wheel_cdev,
 		int j, struct led_classdev_mc* led) {
@@ -38,7 +88,7 @@ static int ftec_wheel_init_multicolor(struct hid_device *hid,
                 return -ENOMEM;
         led_cdev->brightness = 255;
         led_cdev->max_brightness = 255;
-        // led_cdev->brightness_set_blocking = brightness_set;
+        led_cdev->brightness_set_blocking = ftec_wheel_led_mc_set_brightness;
 
         ret = devm_led_classdev_multicolor_register(ftec_wheel_cdev->dev, led);
         if (ret < 0) {
@@ -89,7 +139,7 @@ int _ftec_led_update_state(struct led_classdev *led_cdev, enum led_brightness va
 		struct led_classdev* leds[], int n, u16 led_state)
 {
 	int i, state = 0;
-	for (i = 0; i < n; i++) {
+	for (i = 0; i < MAX_LEDS && i < n; i++) {
 		if (led_cdev != leds[i])
 			continue;
 		state = (led_state >> i) & 1;
@@ -133,7 +183,7 @@ static enum led_brightness ftec_wheel_led_get_brightness(struct led_classdev *le
 		return LED_OFF;
 	}
 
-	for (i = 0; i < drv_data->wheel.wheel->n_leds; i++)
+	for (i = 0; i < MAX_LEDS && i < drv_data->wheel.wheel->n_leds; i++)
 		if (led_cdev == drv_data->led[i]) {
 			value = (drv_data->led_state >> i) & 1;
 			break;
@@ -224,8 +274,12 @@ static struct class ftec_wheel_class = {
 };
 
 static const struct wheel_id wheels[] = {
-	{CSL_STEERING_WHEEL_P1_V2, "CSL Steering Wheel P1 V2", FTEC_WHEEL_FLAG_MC, 1},
+	{CSL_STEERING_WHEEL_P1_V2_ID, "CSL Steering Wheel P1 V2", FTEC_WHEEL_FLAG_MC, 1},
+	{CSL_ELITE_STEERING_WHEEL_WRC_ID, "CSL Elite Steering Wheel WRC", FTEC_WHEEL_FLAG_MC, 1},
+	{CSL_ELITE_STEERING_WHEEL_MCLAREN_GT3_V2_ID, "CSL Elite Steering Wheel McLaren GT3", 0, 0},
 	{CLUBSPORT_STEERING_WHEEL_F1_IS_ID, "ClubSport Steering Wheel F1 IS", 0, 9},
+	{CLUBSPORT_STEERING_WHEEL_FORMULA_V2_ID, "ClubSport Steering Wheel Formula V2", FTEC_WHEEL_FLAG_MC, 15},
+	{PODIUM_STEERING_WHEEL_PORSCHE_911_GT3_R_ID, "Podium Steering Wheel Porsche 911 GT3 R", 0, 9},
 	{}
 };
 
