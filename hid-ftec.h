@@ -3,6 +3,9 @@
 
 #include <linux/module.h>
 #include <linux/input.h>
+#if IS_REACHABLE(CONFIG_LEDS_CLASS)
+#include <linux/leds.h>
+#endif
 
 #define FANATEC_VENDOR_ID 0x0eb7
 
@@ -22,13 +25,13 @@
 #define PORSCHE_911_WHEELBASE_DEVICE_ID 0x0197
 
 // wheels
-#define CSL_STEERING_WHEEL_P1_V2 0x08
-#define CSL_ELITE_STEERING_WHEEL_WRC_ID 0x04
-#define CSL_ELITE_STEERING_WHEEL_MCLAREN_GT3_V2_ID 0x0b
-#define CLUBSPORT_STEERING_WHEEL_F1_IS_ID 0x21
-#define CLUBSPORT_STEERING_WHEEL_FORMULA_V2_ID 0x0a
-#define PODIUM_STEERING_WHEEL_PORSCHE_911_GT3_R_ID 0x0c
-#define PODIUM_BUTTON_MODULE_ENDURANCE_ID 0x06
+#define CSL_STEERING_WHEEL_P1_V2_ID 0x0008
+#define CSL_ELITE_STEERING_WHEEL_WRC_ID 0x0412
+// #define CSL_ELITE_STEERING_WHEEL_MCLAREN_GT3_V2_ID 0x
+#define CLUBSPORT_STEERING_WHEEL_F1_IS_ID 0x2102
+#define CLUBSPORT_STEERING_WHEEL_FORMULA_V2_ID 0x000a
+// #define PODIUM_STEERING_WHEEL_PORSCHE_911_GT3_R_ID 0x0c12
+#define PODIUM_BUTTON_MODULE_ENDURANCE_ID 0x060c
 
 // quirks
 #define FTEC_FF 0x001
@@ -42,7 +45,8 @@
 #define FTEC_WHEEL_REPORT_SIZE 34
 
 // misc
-#define LEDS 9
+#define LEDS_WHEELBASE 9
+#define MAX_LEDS 15 // 9 LEDS + 6 FLAGS
 #define FTECFF_MAX_EFFECTS 16
 
 struct ftecff_effect_state {
@@ -82,6 +86,26 @@ struct ftecff_slot {
 	u8 cmd;
 };
 
+struct ftec_wheel {
+	u16 id;
+	char *name;
+	u8 flags;
+	u8 n_leds;
+};
+
+struct ftec_wheel_classdev {
+	struct device *dev;
+	const struct ftec_wheel *wheel;
+#if IS_REACHABLE(CONFIG_LEDS_CLASS)
+	u16 led_state;
+	struct led_classdev *led[MAX_LEDS];
+#endif
+#if IS_REACHABLE(CONFIG_LEDS_CLASS_MULTICOLOR)
+	u16 led_state_mc[MAX_LEDS];
+	struct led_classdev_mc *led_mc[MAX_LEDS];
+#endif
+};
+
 struct ftec_tuning_classdev {
 	struct device *dev;
 	// the data from the last update we got from the device, shifted by 1
@@ -113,11 +137,13 @@ struct ftec_drv_data {
 	u16 min_range;
 #if IS_REACHABLE(CONFIG_LEDS_CLASS)
 	u16 led_state;
-	struct led_classdev *led[LEDS];
+	struct led_classdev *led[LEDS_WHEELBASE];
 #endif
-	u8 wheel_id;
+	u16 wheel_id;
 	u16 fw_version;
+	struct work_struct wheel_work;
 	struct ftec_tuning_classdev tuning;
+	struct ftec_wheel_classdev wheel;
 	u8 last_tuning_event[FTEC_TUNING_REPORT_SIZE];
 	u8 last_wheel_event[FTEC_WHEEL_REPORT_SIZE];
 };
@@ -169,6 +195,9 @@ enum ftec_tuning_attrs_enum {
 int ftecff_init(struct hid_device *);
 void ftecff_remove(struct hid_device *);
 int ftecff_raw_event(struct hid_device *, struct hid_report *, u8 *, int);
+void send_report_request_to_device(struct ftec_drv_data *);
+
+extern struct class *ftec_wheel_class;
 
 int ftec_tuning_classdev_register(struct device *,
 				  struct ftec_tuning_classdev *);
@@ -176,5 +205,12 @@ void ftec_tuning_classdev_unregister(struct ftec_tuning_classdev *);
 ssize_t _ftec_tuning_show(struct device *, enum ftec_tuning_attrs_enum, char *);
 ssize_t _ftec_tuning_store(struct device *, enum ftec_tuning_attrs_enum,
 			   const char *, size_t);
+int ftec_wheel_classdev_register(struct device *, struct ftec_wheel_classdev *,
+				 u16);
+void ftec_wheel_classdev_unregister(struct ftec_wheel_classdev *);
+#if IS_REACHABLE(CONFIG_LEDS_CLASS)
+int _ftec_led_update_state(struct led_classdev *, enum led_brightness,
+			   struct led_classdev *[], int, u16);
+#endif
 
 #endif
