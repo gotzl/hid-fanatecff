@@ -24,6 +24,7 @@ static void ftec_wheel_set_led_mc(struct hid_device *hid, u16 led_state_mc[], u8
 		buf[3+(2*j)+1] = led_state_mc[offset+j] & 0xff;
 	}
 	ret = hid_hw_output_report(hid, &buf[0], FTEC_TUNING_REPORT_SIZE);
+	kfree(buf);
 }
 
 static int ftec_wheel_led_mc_set_brightness(struct led_classdev *cdev,
