@@ -19,7 +19,7 @@
 #define CSL_STEERING_WHEEL_P1_V2 0x08
 #define CSL_ELITE_STEERING_WHEEL_WRC_ID 0x12
 #define CSL_ELITE_STEERING_WHEEL_MCLAREN_GT3_V2_ID 0x0b
-#define CLUBSPORT_STEERING_WHEEL_F1_IS_ID 0x12
+#define CLUBSPORT_STEERING_WHEEL_F1_IS_ID 0x21
 #define CLUBSPORT_STEERING_WHEEL_FORMULA_V2_ID 0x0a
 #define PODIUM_STEERING_WHEEL_PORSCHE_911_GT3_R_ID 0x0c
 
@@ -37,7 +37,8 @@
 
 
 // misc
-#define LEDS 9
+#define LEDS_WHEELBASE 9
+#define MAX_LEDS 15  // 9 LEDS + 6 FLAGS
 #define FTECFF_MAX_EFFECTS 16
 
 
@@ -78,6 +79,26 @@ struct ftecff_slot {
 	u8 cmd;
 };
 
+struct wheel_id {
+	u8 id;
+	char *name;
+	u8 flags;
+	u8 n_leds;
+};
+
+struct ftec_wheel_classdev {
+	struct device *dev;
+	const struct wheel_id *wheel;
+#ifdef CONFIG_LEDS_CLASS
+	u16 led_state;
+	struct led_classdev *led[MAX_LEDS];
+#endif
+#ifdef CONFIG_LEDS_CLASS_MULTICOLOR
+	u16 led_state_mc[MAX_LEDS];
+	struct led_classdev_mc *led_mc[MAX_LEDS];
+#endif
+};
+
 struct ftec_tuning_classdev {
 	struct device *dev;
 	// the data from the last update we got from the device, shifted by 1
@@ -99,10 +120,11 @@ struct ftec_drv_data {
 	u16 min_range;
 #ifdef CONFIG_LEDS_CLASS
 	u16 led_state;
-	struct led_classdev *led[LEDS];
+	struct led_classdev *led[LEDS_WHEELBASE];
 #endif    
 	u8 wheel_id;
 	struct ftec_tuning_classdev tuning;
+	struct ftec_wheel_classdev wheel;
 };
 
 #define FTEC_TUNING_ATTRS \
