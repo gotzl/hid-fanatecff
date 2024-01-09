@@ -12,6 +12,7 @@
 static void ftec_wheel_set_led_mc(struct hid_device *hid, u16 led_state_mc[], u8 n_leds, bool rpm_leds)
 {
 	u8 *buf = kmalloc_array(FTEC_TUNING_REPORT_SIZE, sizeof(u8), GFP_KERNEL | __GFP_ZERO);
+	/* FIXME: switch between LED and FLAG leds */
 	int j, ret, offset = rpm_leds ? 0 : 9;
 
 	buf[0] = 0xff;
@@ -192,37 +193,27 @@ static enum led_brightness ftec_wheel_led_get_brightness(struct led_classdev *le
 
 	return value ? LED_FULL : LED_OFF;
 }
-static struct led_classdev* ftec_wheel_init_led(struct hid_device *hid, 
-		struct ftec_wheel_classdev *ftec_wheel_cdev, int j) 
+static int ftec_wheel_init_led(struct hid_device *hid,
+		struct ftec_wheel_classdev *ftec_wheel_cdev,
+		int j, struct led_classdev *led)
 {
-	struct led_classdev *led;
-	size_t name_sz;
-	char *name;
 	int ret;
 
-	name_sz = strlen(dev_name(&hid->dev)) + 10;
-	led = kzalloc(sizeof(struct led_classdev)+name_sz, GFP_KERNEL);
-
-	if (!led) {
-		hid_err(hid, "can't allocate memory for LED %d\n", j);
-		return NULL;
-	}
-
-	name = (void *)(&led[1]);
-	snprintf(name, name_sz, "%s:%02x:RPM%d", dev_name(&hid->dev), ftec_wheel_cdev->wheel->id, j+1);
-	led->name = name;
+	led->name = devm_kasprintf(ftec_wheel_cdev->dev, GFP_KERNEL,
+			"%s:%02x:RPM%d", dev_name(&hid->dev),
+			ftec_wheel_cdev->wheel->id, j+1);
 	led->brightness = 0;
 	led->max_brightness = 1;
 	led->brightness_get = ftec_wheel_led_get_brightness;
 	led->brightness_set = ftec_wheel_led_set_brightness;
 
-	ret = led_classdev_register(ftec_wheel_cdev->dev, led);
-	if (ret) {
-		hid_err(hid, "failed to register LED.");
-		kfree(led);
+	ret = devm_led_classdev_register(ftec_wheel_cdev->dev, led);
+	if (ret < 0) {
+		hid_err(hid, "Cannot register LED device.");
+		return ret;
 	}
 
-	return led;
+	return 0;
 }
 #endif
 
@@ -232,17 +223,9 @@ static void ftec_wheel_deinit_leds(struct ftec_wheel_classdev *ftec_wheel_cdev)
 {
 	int j;
 
-	for (j = 0; j < MAX_LEDS && j < ftec_wheel_cdev->wheel->n_leds; j++) {
-		if (ftec_wheel_cdev->wheel->flags & FTEC_WHEEL_FLAG_MC) {
-			ftec_wheel_cdev->led_mc[j] = NULL;
-		} else {
-			if (ftec_wheel_cdev->led[j]) {
-				led_classdev_unregister(ftec_wheel_cdev->led[j]);
-				kfree(ftec_wheel_cdev->led[j]);
-				ftec_wheel_cdev->led[j] = NULL;
-			}
-
-		}
+	for (j = 0; j < MAX_LEDS; j++) {
+		ftec_wheel_cdev->led_mc[j] = NULL;
+		ftec_wheel_cdev->led[j] = NULL;
 	}
 }
 
@@ -258,8 +241,10 @@ static int ftec_wheel_init_leds(struct hid_device *hid, struct ftec_wheel_classd
 				goto err;
 #endif
 		} else {
-			ftec_wheel_cdev->led[j] = ftec_wheel_init_led(hid, ftec_wheel_cdev, j);
+			ftec_wheel_cdev->led[j] = devm_kzalloc(ftec_wheel_cdev->dev, sizeof(struct led_classdev), GFP_KERNEL);
 			if (!ftec_wheel_cdev->led[j])
+				goto err;
+			if (ftec_wheel_init_led(hid, ftec_wheel_cdev, j, ftec_wheel_cdev->led[j]))
 				goto err;
 		}
 	}
@@ -269,6 +254,13 @@ err:
 	return -1;
 }
 #endif
+
+static ssize_t ftec_wheel_name_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct ftec_drv_data *drv_data = hid_get_drvdata(to_hid_device(dev->parent));
+	return scnprintf(buf, PAGE_SIZE, "%s\n", drv_data->wheel.wheel->name);
+}
+static DEVICE_ATTR(name, S_IRUSR | S_IRGRP | S_IROTH, ftec_wheel_name_show, NULL);
 
 static struct class ftec_wheel_class = {
 	.name = "ftec_wheel",
@@ -289,10 +281,9 @@ int ftec_wheel_classdev_register(struct device *parent,
 		u8 wheel_id)
 {
 	struct hid_device *hdev = to_hid_device(parent);
-	int ret, j;
+	int j;
 	
-	ret = class_register(&ftec_wheel_class);
-	if (ret)
+	if (class_register(&ftec_wheel_class))
 		return 0;
 
 	ftec_wheel_cdev->dev = device_create(&ftec_wheel_class, parent, 0, NULL, "%s", dev_name(&hdev->dev));
@@ -309,7 +300,11 @@ int ftec_wheel_classdev_register(struct device *parent,
 		return 0;
 	}
 
-	ret = ftec_wheel_init_leds(hdev, ftec_wheel_cdev);
+	if (ftec_wheel_init_leds(hdev, ftec_wheel_cdev))
+		hid_err(hdev, "error init leds\n");
+
+	if (device_create_file(ftec_wheel_cdev->dev, &dev_attr_name))
+		hid_err(hdev, "error creating sysfs interface for 'name'\n");
 
 	return 0;
 }
@@ -317,6 +312,7 @@ int ftec_wheel_classdev_register(struct device *parent,
 
 void ftec_wheel_classdev_unregister(struct ftec_wheel_classdev *ftec_wheel_cdev)
 {
+	device_remove_file(ftec_wheel_cdev->dev, &dev_attr_name);
 	ftec_wheel_deinit_leds(ftec_wheel_cdev);
 	device_unregister(ftec_wheel_cdev->dev);
 	class_unregister(&ftec_wheel_class);
