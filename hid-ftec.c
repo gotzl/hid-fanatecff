@@ -522,9 +522,8 @@ handle_pid_set_envelope(struct ftec_drv_data *drv_data, struct hid_device *hdev,
 	GET_EFFECT_OR_RETURN(effect);
 
 	DEBUG("set_envelope: %x %x %x %x %x %x %x", effect->id, params->id,
-	      effect->type, params->attack_level,
-	      params->fade_level, params->attack_time,
-	      params->fade_time);
+	      effect->type, params->attack_level, params->fade_level,
+	      params->attack_time, params->fade_time);
 
 	switch (effect->type) {
 	case FF_CONSTANT:
@@ -588,7 +587,8 @@ handle_pid_set_periodic(struct ftec_drv_data *drv_data, struct hid_device *hdev,
 	DEBUG("set_periodic: %x %x %x %x %x %x", effect->id, params->id,
 	      params->period, params->magnitude, params->offset, params->phase);
 
-	effect->u.periodic.period = params->period == 0xffff ? 0 : params->period;
+	effect->u.periodic.period = params->period == 0xffff ? 0 :
+							       params->period;
 	// NOTE: some games abuse periodic to actually send constant force
 	if (effect->u.periodic.period != 0) {
 		effect->u.periodic.magnitude = params->magnitude;
@@ -617,11 +617,11 @@ static int handle_pid_set_effect(struct ftec_drv_data *drv_data,
 
 	PID_HANDLER_PROLOGUE(struct set_effect);
 	GET_EFFECT_OR_RETURN(effect);
-	DEBUG("set_effect: %x %x %x %x %x %x %x %x %x %x", effect->id, params->id,
-	      params->type_idx, params->duration,
-	      params->start_delay, params->gain_percent,
-	      params->axes_enable, params->direction_enable,
-	      params->direction[0], params->direction[1]);
+	DEBUG("set_effect: %x %x %x %x %x %x %x %x %x %x", effect->id,
+	      params->id, params->type_idx, params->duration,
+	      params->start_delay, params->gain_percent, params->axes_enable,
+	      params->direction_enable, params->direction[0],
+	      params->direction[1]);
 
 	// NOTE: ignore type provided by set-effect if effect type
 	//  already set by set_constant or set_periodic
@@ -636,13 +636,16 @@ static int handle_pid_set_effect(struct ftec_drv_data *drv_data,
 	}
 
 	if (effect->type == FF_CONSTANT) {
-		effect->u.constant.level = (effect->u.constant.level * params->gain_percent) / 100;
+		effect->u.constant.level =
+			(effect->u.constant.level * params->gain_percent) / 100;
 	} else if (effect->type == FF_PERIODIC) {
-		effect->u.periodic.magnitude = (effect->u.periodic.magnitude * params->gain_percent) / 100;
+		effect->u.periodic.magnitude =
+			(effect->u.periodic.magnitude * params->gain_percent) /
+			100;
 	}
 
-	effect->replay.length = 
-		params->duration == 0xffff ? 0 : params->duration;
+	effect->replay.length = params->duration == 0xffff ? 0 :
+							     params->duration;
 	effect->replay.delay = params->start_delay;
 	effect->trigger.interval = params->trigger_repeat_interval;
 	effect->trigger.button = params->trigger_button;
@@ -651,7 +654,7 @@ static int handle_pid_set_effect(struct ftec_drv_data *drv_data,
 	if (params->direction_enable && params->direction[0] != 0) {
 		effect->direction = 0x10000ULL * params->direction[0] / 36000;
 	} else {
-		// default direction +X 
+		// default direction +X
 		effect->direction = 0x4000;
 	}
 
@@ -699,8 +702,7 @@ static int handle_pid_effect_operation(struct ftec_drv_data *drv_data,
 			(void)ff->upload(inputdev, effect, NULL);
 		}
 		ftec_client_report_state(drv_data->client.hdev,
-					 PID_EFFECT_STATE_STARTED,
-					 effect->id);
+					 PID_EFFECT_STATE_STARTED, effect->id);
 	}
 
 	(void)ff->playback(inputdev, effect->id, params->count);
@@ -718,7 +720,8 @@ static int handle_pid_device_control(struct ftec_drv_data *drv_data,
 	DEBUG("device_control: %x", params->ctrl);
 
 	if (params->stop_all_effects || params->reset) {
-		DEBUG("device_control: stop effects%s", params->reset ? " and reset" : "");
+		DEBUG("device_control: stop effects%s",
+		      params->reset ? " and reset" : "");
 		size_t i;
 		for (i = 0; i < ARRAY_SIZE(drv_data->client.effects); ++i) {
 			if (drv_data->client.effects[i].id) {
@@ -873,8 +876,8 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 	} else if (hdev->product == PODIUM_WHEELBASE_DD1_DEVICE_ID ||
 		   hdev->product == PODIUM_WHEELBASE_DD2_DEVICE_ID ||
 		   hdev->product == CSL_DD_WHEELBASE_DEVICE_ID) {
-	    // technically max_range is 2520, but 2530 is used as 'auto'
-		drv_data->max_range = 2530; 
+		// technically max_range is 2520, but 2530 is used as 'auto'
+		drv_data->max_range = 2530;
 	}
 
 	hid_set_drvdata(hdev, (void *)drv_data);
@@ -1039,11 +1042,8 @@ static unsigned int ftec_keymap[] = {
 	[0x0d] = BTN_0, /* Shifter R */
 	[0x0e] = BTN_1, /* Shifter 1 */
 	[0x0f] = BTN_2, /* ... */
-	[0x10] = BTN_3,
-	[0x11] = BTN_4,
-	[0x12] = BTN_5,
-	[0x13] = BTN_6,
-	[0x14] = BTN_7, /* Shifter 7 */
+	[0x10] = BTN_3,		[0x11] = BTN_4, [0x12] = BTN_5,
+	[0x13] = BTN_6,		[0x14] = BTN_7, /* Shifter 7 */
 	[0x15] = BTN_8, /* unknown */
 	[0x16] = BTN_MODE, /* PS, XBOX, R toggle-up */
 	[0x17] = BTN_C, /* Funky stick twist left */
@@ -1136,9 +1136,11 @@ static const struct hid_device_id devices[] = {
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CLUBSPORT_PEDALS_V3_DEVICE_ID),
 	  .driver_data = FTEC_PEDALS },
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_ELITE_WHEELBASE_DEVICE_ID),
-	  .driver_data = FTEC_FF | FTEC_TUNING_MENU | FTEC_WHEELBASE_LEDS | FTEC_HIGHRES },
+	  .driver_data = FTEC_FF | FTEC_TUNING_MENU | FTEC_WHEELBASE_LEDS |
+			 FTEC_HIGHRES },
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_ELITE_PS4_WHEELBASE_DEVICE_ID),
-	  .driver_data = FTEC_FF | FTEC_TUNING_MENU | FTEC_WHEELBASE_LEDS | FTEC_HIGHRES },
+	  .driver_data = FTEC_FF | FTEC_TUNING_MENU | FTEC_WHEELBASE_LEDS |
+			 FTEC_HIGHRES },
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_ELITE_PEDALS_DEVICE_ID),
 	  .driver_data = FTEC_PEDALS },
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_LC_PEDALS_DEVICE_ID),
@@ -1168,7 +1170,39 @@ static struct hid_driver fanatec_driver = {
 	.remove = ftec_remove,
 	.raw_event = ftec_raw_event,
 };
-module_hid_driver(fanatec_driver)
+static int __init fanatec_module_init(void)
+{
+	int ret;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
+	ftec_wheel_class = class_create("ftec_wheel");
+#else
+	ftec_wheel_class = class_create(THIS_MODULE, "ftec_wheel");
+#endif
+
+	if (IS_ERR(ftec_wheel_class)) {
+		ret = PTR_ERR(ftec_wheel_class);
+		ftec_wheel_class = NULL;
+		return ret;
+	}
+
+	if ((ret = hid_register_driver(&fanatec_driver))) {
+		class_destroy(ftec_wheel_class);
+		ftec_wheel_class = NULL;
+	}
+	return ret;
+}
+
+static void __exit fanatec_module_exit(void)
+{
+	hid_unregister_driver(&fanatec_driver);
+	if (ftec_wheel_class)
+		class_destroy(ftec_wheel_class);
+	ftec_wheel_class = NULL;
+}
+
+module_init(fanatec_module_init);
+module_exit(fanatec_module_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("gotzl");
