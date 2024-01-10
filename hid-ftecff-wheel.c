@@ -63,8 +63,10 @@ static int ftec_wheel_led_mc_set_brightness(struct led_classdev *cdev,
 
 static int ftec_wheel_init_multicolor(struct hid_device *hid,
 		struct ftec_wheel_classdev *ftec_wheel_cdev,
-		int j, struct led_classdev_mc* led) {
+		int j)
+{
         struct mc_subled *mc_led_info;
+        struct led_classdev_mc *led;
         struct led_classdev *led_cdev;
         int ret;
 
@@ -76,6 +78,7 @@ static int ftec_wheel_init_multicolor(struct hid_device *hid,
         mc_led_info[1].color_index = LED_COLOR_ID_GREEN;
         mc_led_info[2].color_index = LED_COLOR_ID_BLUE;
 
+        led = devm_kzalloc(ftec_wheel_cdev->dev, sizeof(struct led_classdev_mc), GFP_KERNEL);
         led->subled_info = mc_led_info;
         led->num_colors = 3;
 
@@ -92,12 +95,13 @@ static int ftec_wheel_init_multicolor(struct hid_device *hid,
         led_cdev->max_brightness = 255;
         led_cdev->brightness_set_blocking = ftec_wheel_led_mc_set_brightness;
 
-        ret = devm_led_classdev_multicolor_register(ftec_wheel_cdev->dev, led);
+        ret = led_classdev_multicolor_register(ftec_wheel_cdev->dev, led);
         if (ret < 0) {
                 hid_err(hid, "Cannot register multicolor LED device\n");
                 return ret;
         }
 
+        ftec_wheel_cdev->led_mc[j] = led;
         return 0;
 }
 #endif
@@ -193,12 +197,15 @@ static enum led_brightness ftec_wheel_led_get_brightness(struct led_classdev *le
 
 	return value ? LED_FULL : LED_OFF;
 }
+
 static int ftec_wheel_init_led(struct hid_device *hid,
 		struct ftec_wheel_classdev *ftec_wheel_cdev,
-		int j, struct led_classdev *led)
+		int j)
 {
+	struct led_classdev *led;
 	int ret;
 
+	led = devm_kzalloc(ftec_wheel_cdev->dev, sizeof(struct led_classdev), GFP_KERNEL);
 	led->name = devm_kasprintf(ftec_wheel_cdev->dev, GFP_KERNEL,
 			"%s:%02x:RPM%d", dev_name(&hid->dev),
 			ftec_wheel_cdev->wheel->id, j+1);
@@ -207,12 +214,13 @@ static int ftec_wheel_init_led(struct hid_device *hid,
 	led->brightness_get = ftec_wheel_led_get_brightness;
 	led->brightness_set = ftec_wheel_led_set_brightness;
 
-	ret = devm_led_classdev_register(ftec_wheel_cdev->dev, led);
+	ret = led_classdev_register(ftec_wheel_cdev->dev, led);
 	if (ret < 0) {
 		hid_err(hid, "Cannot register LED device.");
 		return ret;
 	}
 
+	ftec_wheel_cdev->led[j] = led;
 	return 0;
 }
 #endif
@@ -224,6 +232,10 @@ static void ftec_wheel_deinit_leds(struct ftec_wheel_classdev *ftec_wheel_cdev)
 	int j;
 
 	for (j = 0; j < MAX_LEDS; j++) {
+		if (ftec_wheel_cdev->led_mc[j])
+			led_classdev_multicolor_unregister(ftec_wheel_cdev->led_mc[j]);
+		if (ftec_wheel_cdev->led[j])
+			led_classdev_unregister(ftec_wheel_cdev->led[j]);
 		ftec_wheel_cdev->led_mc[j] = NULL;
 		ftec_wheel_cdev->led[j] = NULL;
 	}
@@ -234,17 +246,11 @@ static int ftec_wheel_init_leds(struct hid_device *hid, struct ftec_wheel_classd
 	for (j = 0; j < MAX_LEDS && j < ftec_wheel_cdev->wheel->n_leds; j++) {
 		if (ftec_wheel_cdev->wheel->flags & FTEC_WHEEL_FLAG_MC) {
 #ifdef CONFIG_LEDS_CLASS_MULTICOLOR
-			ftec_wheel_cdev->led_mc[j] = devm_kzalloc(ftec_wheel_cdev->dev, sizeof(struct led_classdev_mc), GFP_KERNEL);
-			if (!ftec_wheel_cdev->led_mc[j])
-				goto err;
-			if (ftec_wheel_init_multicolor(hid, ftec_wheel_cdev, j, ftec_wheel_cdev->led_mc[j]))
+			if (ftec_wheel_init_multicolor(hid, ftec_wheel_cdev, j))
 				goto err;
 #endif
 		} else {
-			ftec_wheel_cdev->led[j] = devm_kzalloc(ftec_wheel_cdev->dev, sizeof(struct led_classdev), GFP_KERNEL);
-			if (!ftec_wheel_cdev->led[j])
-				goto err;
-			if (ftec_wheel_init_led(hid, ftec_wheel_cdev, j, ftec_wheel_cdev->led[j]))
+			if (ftec_wheel_init_led(hid, ftec_wheel_cdev, j))
 				goto err;
 		}
 	}
@@ -267,8 +273,9 @@ static struct class ftec_wheel_class = {
 };
 
 static const struct wheel_id wheels[] = {
-	{CSL_STEERING_WHEEL_P1_V2_ID, "CSL Steering Wheel P1 V2", FTEC_WHEEL_FLAG_MC, 1},
-	{CSL_ELITE_STEERING_WHEEL_WRC_ID, "CSL Elite Steering Wheel WRC", FTEC_WHEEL_FLAG_MC, 1},
+	/* FIXME: can we have a better interface for wheels with one multicolor LED? */
+	{CSL_STEERING_WHEEL_P1_V2_ID, "CSL Steering Wheel P1 V2", 0, 9},
+	{CSL_ELITE_STEERING_WHEEL_WRC_ID, "CSL Elite Steering Wheel WRC", 0, 9},
 	{CSL_ELITE_STEERING_WHEEL_MCLAREN_GT3_V2_ID, "CSL Elite Steering Wheel McLaren GT3", 0, 0},
 	{CLUBSPORT_STEERING_WHEEL_F1_IS_ID, "ClubSport Steering Wheel F1 IS", 0, 9},
 	{CLUBSPORT_STEERING_WHEEL_FORMULA_V2_ID, "ClubSport Steering Wheel Formula V2", FTEC_WHEEL_FLAG_MC, 15},
@@ -284,11 +291,11 @@ int ftec_wheel_classdev_register(struct device *parent,
 	int j;
 	
 	if (class_register(&ftec_wheel_class))
-		return 0;
+		return -1;
 
 	ftec_wheel_cdev->dev = device_create(&ftec_wheel_class, parent, 0, NULL, "%s", dev_name(&hdev->dev));
 	ftec_wheel_cdev->wheel = NULL;
-	for (j = 0; j < sizeof(wheels); j++) {
+	for (j = 0; wheels[j].id != 0; j++) {
 		if (wheels[j].id == wheel_id) {
 			ftec_wheel_cdev->wheel = &wheels[j];
 			break;
@@ -297,16 +304,28 @@ int ftec_wheel_classdev_register(struct device *parent,
 
 	if (!ftec_wheel_cdev->wheel) {
 		hid_err(hdev, "unknown wheel_id 0x%02x\n", wheel_id);
-		return 0;
+		goto err_unregister;
 	}
 
-	if (ftec_wheel_init_leds(hdev, ftec_wheel_cdev))
+	if (ftec_wheel_init_leds(hdev, ftec_wheel_cdev)) {
 		hid_err(hdev, "error init leds\n");
+		goto err_unregister;
+	}
 
-	if (device_create_file(ftec_wheel_cdev->dev, &dev_attr_name))
+	if (device_create_file(ftec_wheel_cdev->dev, &dev_attr_name)) {
 		hid_err(hdev, "error creating sysfs interface for 'name'\n");
+		goto err_deinit_leds;
+	}
 
 	return 0;
+
+err_deinit_leds:
+	ftec_wheel_deinit_leds(ftec_wheel_cdev);
+err_unregister:
+	device_unregister(ftec_wheel_cdev->dev);
+	class_unregister(&ftec_wheel_class);
+	ftec_wheel_cdev->wheel = NULL;
+	return -1;
 }
 
 
@@ -316,5 +335,6 @@ void ftec_wheel_classdev_unregister(struct ftec_wheel_classdev *ftec_wheel_cdev)
 	ftec_wheel_deinit_leds(ftec_wheel_cdev);
 	device_unregister(ftec_wheel_cdev->dev);
 	class_unregister(&ftec_wheel_class);
+	ftec_wheel_cdev->wheel = NULL;
 }
 

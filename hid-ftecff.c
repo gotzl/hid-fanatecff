@@ -982,6 +982,19 @@ static void ftecff_destroy(struct ff_device *ff)
 {
 }
 
+static void ftec_register_wheel_handler(struct work_struct *work) {
+	struct ftec_drv_data *drv_data = container_of(work, struct ftec_drv_data, wheel_work);
+	struct hid_device *hdev = drv_data->hid;
+	if (drv_data->wheel.wheel) {
+		ftec_wheel_classdev_unregister(&drv_data->wheel);
+	}
+	if (drv_data->wheel_id)
+		ftec_wheel_classdev_register(&hdev->dev, &drv_data->wheel, drv_data->wheel_id);
+	if (!(IS_ERR_OR_NULL(&drv_data->wheel.dev)))
+		kobject_uevent(&hdev->dev.kobj, KOBJ_CHANGE);
+	drv_data->wheel_working = false;
+}
+
 int ftecff_init(struct hid_device *hdev) {
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hdev);
 	struct hid_input *hidinput = list_entry(hdev->inputs.next, struct hid_input, list);
@@ -1009,6 +1022,7 @@ int ftecff_init(struct hid_device *hdev) {
 	/* init sequence */
 	{
 		/* tuning menu initialization? */
+		/*
 		if (drv_data->quirks & FTEC_TUNING_MENU) {
 			u8 buf[] = { 0xff, 0x08, 0x01, 0xff, 0x0, 0x0, 0x0, 0x0 };
 			ret = hid_hw_output_report(hdev, &buf[0], 8);
@@ -1020,6 +1034,7 @@ int ftecff_init(struct hid_device *hdev) {
 			buf[2] = 0x02;
 			ret = hid_hw_output_report(hdev, &buf[0], 8);
 		}
+		*/
 
 		/* common initialization? */
 		spin_lock_irqsave(&drv_data->report_lock, flags);
@@ -1068,6 +1083,7 @@ int ftecff_init(struct hid_device *hdev) {
 #endif
 
 	drv_data->effects_used = 0;
+	drv_data->wheel_working = false;
 	drv_data->wheel.wheel = NULL;
 
 	ftecff_init_slots(drv_data);
@@ -1076,6 +1092,8 @@ int ftecff_init(struct hid_device *hdev) {
 	hrtimer_init(&drv_data->hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	drv_data->hrtimer.function = ftecff_timer_hires;
 	hid_info(hdev, "Hires timer: period = %d ms", timer_msecs);
+
+	INIT_WORK(&drv_data->wheel_work, ftec_register_wheel_handler);
 
 	return 0;
 }
@@ -1099,7 +1117,9 @@ void ftecff_remove(struct hid_device *hdev)
 	}
 
 	if (drv_data->wheel.wheel) {
+		drv_data->wheel_working = true;
 		ftec_wheel_classdev_unregister(&drv_data->wheel);
+		drv_data->wheel.wheel = NULL;
 	}
 
 #ifdef CONFIG_LEDS_CLASS
@@ -1123,24 +1143,24 @@ void ftecff_remove(struct hid_device *hdev)
 
 int ftecff_raw_event(struct hid_device *hdev, struct hid_report *report, u8 *data, int size) {
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hdev);
+
+	if (size == 0)
+		return 0;
+
 	if (data[0] == 0xff && size == FTEC_TUNING_REPORT_SIZE) {
 		// shift by 1 so that we can use this as the buffer when writing back to the device
 		memcpy(&drv_data->tuning.ftec_tuning_data[0] + 1, data, sizeof(drv_data->tuning.ftec_tuning_data) - 1);
 		// notify userspace about value change
 		if (!(IS_ERR_OR_NULL(drv_data->tuning.dev)))
 			kobject_uevent(&drv_data->tuning.dev->kobj, KOBJ_CHANGE);
-	} else if (data[0] == 0x01) {
+	} else if (data[0] == 0x01 && size > 0x1f) {
 		// TODO: detect wheel change and react on it in some way?
 		bool changed = drv_data->wheel_id != data[0x1f];
 		drv_data->wheel_id = data[0x1f];
 		// notify userspace about value change
-		if (changed) {
-			if (drv_data->wheel.wheel) {
-				ftec_wheel_classdev_unregister(&drv_data->wheel);
-			}
-			ftec_wheel_classdev_register(&hdev->dev, &drv_data->wheel, drv_data->wheel_id);
-			if (!(IS_ERR_OR_NULL(&drv_data->wheel.dev)))
-				kobject_uevent(&hdev->dev.kobj, KOBJ_CHANGE);
+		if (changed && !drv_data->wheel_working) {
+			drv_data->wheel_working = true;
+			schedule_work(&drv_data->wheel_work);
 		}
 	}
 	return 0;

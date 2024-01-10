@@ -23,7 +23,7 @@
 
 // wheels
 #define CSL_STEERING_WHEEL_P1_V2_ID 0x08
-#define CSL_ELITE_STEERING_WHEEL_WRC_ID 0x12
+#define CSL_ELITE_STEERING_WHEEL_WRC_ID 0x04
 #define CSL_ELITE_STEERING_WHEEL_MCLAREN_GT3_V2_ID 0x0b
 #define CLUBSPORT_STEERING_WHEEL_F1_IS_ID 0x21
 #define CLUBSPORT_STEERING_WHEEL_FORMULA_V2_ID 0x0a
@@ -128,6 +128,8 @@ struct ftec_drv_data {
 	struct led_classdev *led[LEDS_WHEELBASE];
 #endif    
 	u8 wheel_id;
+	bool wheel_working;
+	struct work_struct wheel_work;
 	struct ftec_tuning_classdev tuning;
 	struct ftec_wheel_classdev wheel;
 };
