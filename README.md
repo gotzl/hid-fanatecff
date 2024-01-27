@@ -48,7 +48,7 @@ If you don't want to compile and install manually, following is a list of known 
 Support for a bunch of effects, mostly copy-pasted from [new-lg4ff](https://github.com/berarma/new-lg4ff). _Note:_ only tested with CSL Elite Wheelbase.
 Currently not supported effects: FF_FRICTION, FF_INERTIA
 
-**Note:** With Proton 7/8 the wheel is not detected properly when starting a game for the first time (ie, when a new proton-prefix is created). The current workaround is to first start the game with Proton 6, and then switch to a later one. (See also #46)
+**Note:** With Proton 7/8, in some games the wheel is not detected properly when starting it for the first time (ie, when a new proton-prefix is created). The current workaround is to first start the game with Proton 6, and then switch to a later one. (See also #67)
 
 ### FFB in specific Games
 
