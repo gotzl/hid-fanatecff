@@ -262,10 +262,10 @@ int ftec_tuning_classdev_register(struct device *parent,
 
 void ftec_tuning_classdev_unregister(struct ftec_tuning_classdev *ftec_tuning_cdev)
 {
+	struct hid_device *hdev = to_hid_device(ftec_tuning_cdev->dev->parent);
+
 	if (IS_ERR_OR_NULL(ftec_tuning_cdev->dev))
 		return;
-
-	struct hid_device *hdev = to_hid_device(ftec_tuning_cdev->dev->parent);
 	
 #define REMOVE_SYSFS_FILE(name) device_remove_file(ftec_tuning_cdev->dev, &dev_attr_##name); \
 

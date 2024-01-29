@@ -314,6 +314,7 @@ static ssize_t ftec_set_display(struct device *dev, struct device_attribute *att
 	struct ftec_drv_data *drv_data;
 	unsigned long flags;
 	s32 *value;
+	unsigned int valueIndex, bufIndex = 0;
 
 	// check the buffer size, note that in lack of points or commas, only the first 3 characters will be processed
 	if (count > 7) {
@@ -340,9 +341,8 @@ static ssize_t ftec_set_display(struct device *dev, struct device_attribute *att
 	value[5] = 0x00;
 	value[6] = 0x00;
 
-	int bufIndex = 0;
 	// set each of the segments as long there is input data
-	for(int valueIndex = 4; valueIndex <= 6 && bufIndex < count; valueIndex++) {
+	for(valueIndex = 4; valueIndex <= 6 && bufIndex < count; valueIndex++) {
 		bool point = false;
 		// check if next char is a point or comma if not end of the string
 		if(bufIndex+1 < count) {
@@ -1051,6 +1051,7 @@ int ftecff_init(struct hid_device *hdev) {
 	struct ff_device *ff;
 	unsigned long flags;
 	int ret,j;
+	s32 *value;
 
 	dbg_hid(" ... setting FF bits");
 	for (j = 0; ftecff_wheel_effects[j] >= 0; j++)
@@ -1084,7 +1085,7 @@ int ftecff_init(struct hid_device *hdev) {
 
 		/* common initialization? */
 		spin_lock_irqsave(&drv_data->report_lock, flags);
-		s32 *value = drv_data->report->field[0]->value;
+		value = drv_data->report->field[0]->value;
 		value[0] = 0xf8;
 		value[1] = 0x09;
 		value[2] = 0x01;
