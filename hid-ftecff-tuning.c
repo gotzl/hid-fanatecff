@@ -130,6 +130,12 @@ ssize_t _ftec_tuning_store(struct device *dev, enum ftec_tuning_attrs_enum id,
 	const struct ftec_tuning_attr_t *tuning_attr = &ftec_tuning_attrs[id];
 	int val, _max = tuning_attr->max;
 
+	/* guard from writing w/o having read values */
+	if (drv_data->tuning.ftec_tuning_data[ftec_tuning_attrs[SLOT].addr+1] == 0x0) {
+		hid_err(hid, "Cannot write to tuning-menu, not yet read data from device.\n");
+		return -EINVAL;
+	}
+
 	if (kstrtos32(buf, 0, &val) != 0) {
 		hid_err(hid, "Invalid value %s!\n", buf);
 		return -EINVAL;
