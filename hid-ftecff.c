@@ -1101,17 +1101,13 @@ int ftecff_init(struct hid_device *hdev) {
 		spin_unlock_irqrestore(&drv_data->report_lock, flags);
 	}
 
-	/* FIXME: not sure if this is still required */
-	if (!(drv_data->quirks & FTEC_TUNING_MENU)) {
-		printk(KERN_INFO "ftecff: no tuning menu\n");
-		/* Set range so that centering spring gets disabled */
-		if (init_range > 0 && (init_range > drv_data->max_range || init_range < drv_data->min_range)) {
-			hid_warn(hdev, "Invalid init_range %i; using max range of %i instead\n", init_range, drv_data->max_range);
-			init_range = -1;
-		}
-		drv_data->range = init_range > 0 ? init_range : drv_data->max_range;
-		ftec_set_range(hdev, drv_data->range);
+	/* Set range so that centering spring gets disabled */
+	if (init_range > 0 && (init_range > drv_data->max_range || init_range < drv_data->min_range)) {
+		hid_warn(hdev, "Invalid init_range %i; using max range of %i instead\n", init_range, drv_data->max_range);
+		init_range = -1;
 	}
+	drv_data->range = init_range > 0 ? init_range : drv_data->max_range;
+	ftec_set_range(hdev, drv_data->range);
 
 	/* Create sysfs interface */
 #define CREATE_SYSFS_FILE(name) \
