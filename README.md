@@ -77,7 +77,7 @@ Games that don't work properly:
 
 Advanced functions of wheels/bases are available via sysfs. Base sysfs path:
 
-`/sys/module/hid_fanatec/drivers/hid:ftec_csl_elite/0003:0EB7:0005.*/`
+`/sys/module/hid_fanatec/drivers/hid:fanatec/0003:0EB7:0005.*/`
 
 #### Common
 

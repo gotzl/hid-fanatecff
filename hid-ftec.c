@@ -338,14 +338,14 @@ static const struct hid_device_id devices[] = {
 
 MODULE_DEVICE_TABLE(hid, devices);
 
-static struct hid_driver ftec_csl_elite = {
-	.name = "ftec_csl_elite",
+static struct hid_driver fanatec_driver = {
+	.name = "fanatec",
 	.id_table = devices,
         .probe = ftec_probe,
         .remove = ftec_remove,
 	.raw_event = ftec_raw_event,
 };
-module_hid_driver(ftec_csl_elite)
+module_hid_driver(fanatec_driver)
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("gotzl");
