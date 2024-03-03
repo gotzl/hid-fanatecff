@@ -45,8 +45,8 @@ If you don't want to compile and install manually, following is a list of known 
 
 ### General
 
-Support for a bunch of effects, mostly copy-pasted from [new-lg4ff](https://github.com/berarma/new-lg4ff). _Note:_ only tested with CSL Elite Wheelbase.
-Currently not supported effects: FF_FRICTION, FF_INERTIA
+Support for a bunch of effects, mostly copy-pasted from [new-lg4ff](https://github.com/berarma/new-lg4ff).
+Currently not properly supported effects: FF_FRICTION, FF_INERTIA (note that most games don't use these effects anyways).
 
 **Note:** With Proton 7/8, in some games the wheel is not detected properly when starting it for the first time (ie, when a new proton-prefix is created). The current workaround is to first start the game with Proton 6, and then switch to a later one. (See also #67)
 
@@ -54,19 +54,24 @@ Currently not supported effects: FF_FRICTION, FF_INERTIA
 
 Games that are expected to work (tested by me and others more or less regularly):
 
-* AC / ACC
+* AC / ACC (*)
 * Automobilista 2
 * DiRT 4
-* DiRT Rally 2 / WRC
-* F1 22/23
+* DiRT Rally 2 / WRC (**)
+* F1 22/23 (***)
 * rFactor2
 * Rennsport
+* RRRE
 
 Games that don't work properly:
 
 * F1 2020/2021 (#22)
 * BeamNG.drive (proton) (#23)
-* RRRE (#53)
+
+
+(* input devices can get mixed-up in ACC; best have only the wheel-base connected and always use the same USB-slot)
+(** uses FF_FRICTION)
+(*** unsure if all effects are present)
 
 ### Device specific
 
@@ -78,14 +83,15 @@ Advanced functions of wheels/bases are available via sysfs. Base sysfs path:
 
 * set/get range: echo number in degrees to `range`
 * get id of mounted wheel: `wheel_id`
+* tuning menu (experimental): `tuning_menu/*` 
+  * get/set tuning menu slot: echo number into `SLOT`
+  * values get/set: `BLI DPR DRI FEI FF FOR SEN SHO SPR ...` (files depend on wheel-base)
+  * reset all tuning sets by echoing anything into `RESET`
+
 
 #### CSL Elite Base
 
 * RPM LEDs: `leds/0003:0EB7:0005.*::RPMx/brightness` (x from 1 to 9)
-* tuning menu:
-  * get/set tuning menu slot: echo number into `SLOT`
-  * values get/set: `BLI DPR DRI FEI FF FOR SEN SHO SPR`
-  * reset all tuning sets by echoing anything into `RESET`
 
 #### ClubSport Forumla1 wheel
 
@@ -110,10 +116,13 @@ To access advanced functions from user space please see the [hid-fanatecff-tools
 
 * support more effects
 * support more devices / advances functions of devices
+* support different wheels-rims and their quirks
+* packaging for more distros
 
 ## Contact
 If you have an issue, feature request or a general question, feel free to open a ticket on github.
 
 ## Disclaimer
 
+I am not associated with Endor AG/Fanatec. 
 I take absolutly _no_ responsibility for any malfunction of this driver and their consequences. If your device breaks or your hands get ripped off I'm sorry, though. ;)
