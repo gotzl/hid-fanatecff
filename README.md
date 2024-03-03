@@ -69,9 +69,9 @@ Games that don't work properly:
 * BeamNG.drive (proton) (#23)
 
 
-(* input devices can get mixed-up in ACC; best have only the wheel-base connected and always use the same USB-slot)
-(** uses FF_FRICTION)
-(*** unsure if all effects are present)
+(* input devices can get mixed-up in ACC; best have only the wheel-base connected and always use the same USB-slot)   
+(** uses FF_FRICTION)   
+(*** unsure if all effects are present)   
 
 ### Device specific
 
