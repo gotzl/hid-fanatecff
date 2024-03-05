@@ -10,6 +10,9 @@
 int init_load = 4;
 module_param(init_load, int, 0);
 
+bool pedal_rumble = false;
+module_param(pedal_rumble, bool, 0);
+
 int ftecff_init(struct hid_device *hdev);
 void ftecff_remove(struct hid_device *hdev);
 int ftecff_raw_event(struct hid_device *hdev, struct hid_report *report, u8 *data, int size);
@@ -79,7 +82,7 @@ static void ftec_set_load(struct hid_device *hid, u8 val)
 	spin_unlock_irqrestore(&drv_data->report_lock, flags);
 }
 
-static void ftec_set_rumble(struct hid_device *hid, u32 val)
+static void ftec_set_rumble(struct hid_device *hid, u32 val, bool pedals)
 {
 	struct ftec_drv_data *drv_data;
 	unsigned long flags;
@@ -100,7 +103,7 @@ static void ftec_set_rumble(struct hid_device *hid, u32 val)
 	value[0] = 0xf8;
 	value[1] = 0x09;
 	value[2] = 0x01;
-	value[3] = drv_data->quirks & FTEC_PEDALS ? 0x04 : 0x03;
+	value[3] = (drv_data->quirks & FTEC_PEDALS || pedals) ? 0x04 : 0x03;
 	value[4] = (val>>16)&0xff;
 	value[5] = (val>>8)&0xff;
 	value[6] = (val)&0xff;
@@ -152,11 +155,23 @@ static ssize_t ftec_rumble_store(struct device *dev, struct device_attribute *at
 	struct hid_device *hid = to_hid_device(dev);
 	u32 rumble;
 	if (kstrtou32(buf, 0, &rumble) == 0) {
-		ftec_set_rumble(hid, rumble);
+		ftec_set_rumble(hid, rumble, false);
 	}
 	return count;
 }
 static DEVICE_ATTR(rumble, S_IWUSR | S_IWGRP, NULL, ftec_rumble_store);
+
+static ssize_t ftec_pedal_rumble_store(struct device *dev, struct device_attribute *attr,
+				 const char *buf, size_t count)
+{
+	struct hid_device *hid = to_hid_device(dev);
+	u32 rumble;
+	if (kstrtou32(buf, 0, &rumble) == 0) {
+		ftec_set_rumble(hid, rumble, true);
+	}
+	return count;
+}
+static DEVICE_ATTR(pedal_rumble, S_IWUSR | S_IWGRP, NULL, ftec_pedal_rumble_store);
 
 static int ftec_init(struct hid_device *hdev) {
 	struct list_head *report_list = &hdev->report_enum[HID_OUTPUT_REPORT].report_list;
@@ -278,6 +293,10 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 		ret = device_create_file(&hdev->dev, &dev_attr_load);
 		if (ret)
 			hid_warn(hdev, "Unable to create sysfs interface for \"load\", errno %d\n", ret);
+	} else if (pedal_rumble) {
+		ret = device_create_file(&hdev->dev, &dev_attr_pedal_rumble);
+		if (ret)
+			hid_warn(hdev, "Unable to create sysfs interface for \"pedal_rumble\", errno %d\n", ret);
 	}
 
 	return 0;
@@ -303,6 +322,9 @@ static void ftec_remove(struct hid_device *hdev)
 	    hdev->product == CSL_ELITE_PS4_WHEELBASE_DEVICE_ID ||
 	    hdev->product == CLUBSPORT_PEDALS_V3_DEVICE_ID) {
 		device_remove_file(&hdev->dev, &dev_attr_rumble);
+	}
+	if (!(drv_data->quirks & FTEC_PEDALS) && pedal_rumble) {
+		device_remove_file(&hdev->dev, &dev_attr_pedal_rumble);
 	}
 	
 	if (drv_data->quirks & FTEC_FF) {
