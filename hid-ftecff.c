@@ -43,14 +43,6 @@ static int profile = 1;
 module_param(profile, int, 0660);
 MODULE_PARM_DESC(profile, "Enable profile debug messages.");
 
-int ftec_tuning_classdev_register(struct device *parent, 
-		struct ftec_tuning_classdev *ftec_tuning_cdev);
-void ftec_tuning_classdev_unregister(struct ftec_tuning_classdev *ftec_tuning_cdev);
-ssize_t _ftec_tuning_show(struct device *dev,
-		enum ftec_tuning_attrs_enum id, char *buf);
-ssize_t _ftec_tuning_store(struct device *dev,
-		enum ftec_tuning_attrs_enum id,
-		const char *buf, size_t count);
 
 static const signed short ftecff_wheel_effects[] = {
 	FF_CONSTANT,
@@ -551,7 +543,7 @@ err_leds:
 }
 #endif
 
-void ftecff_send_cmd(struct ftec_drv_data *drv_data, u8 *cmd)
+static void ftecff_send_cmd(struct ftec_drv_data *drv_data, u8 *cmd)
 {
 	unsigned short i;
 	unsigned long flags;
@@ -637,7 +629,7 @@ static __always_inline void ftecff_update_state(struct ftecff_effect_state *stat
 	}
 }
 
-void ftecff_update_slot(struct ftecff_slot *slot, struct ftecff_effect_parameters *parameters, const bool highres)
+static void ftecff_update_slot(struct ftecff_slot *slot, struct ftecff_effect_parameters *parameters, const bool highres)
 {
 	u8 original_cmd[7];
 	unsigned short i;

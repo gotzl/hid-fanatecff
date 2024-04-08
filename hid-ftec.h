@@ -1,6 +1,9 @@
 #ifndef __HID_FTEC_H
 #define __HID_FTEC_H
 
+#include <linux/module.h>
+#include <linux/input.h>
+
 #define FANATEC_VENDOR_ID 0x0eb7
 
 // wheelbases
@@ -39,7 +42,6 @@
 // misc
 #define LEDS 9
 #define FTECFF_MAX_EFFECTS 16
-
 
 struct ftecff_effect_state {
 	struct ff_effect effect;
@@ -129,5 +131,16 @@ FTEC_TUNING_ATTRS
 	FTEC_TUNING_ATTR_NONE
 #undef FTEC_TUNING_ATTR
 };
+
+
+int ftecff_init(struct hid_device*);
+void ftecff_remove(struct hid_device*);
+int ftecff_raw_event(struct hid_device*, struct hid_report*, u8*, int);
+
+int ftec_tuning_classdev_register(struct device*, struct ftec_tuning_classdev*);
+void ftec_tuning_classdev_unregister(struct ftec_tuning_classdev*);
+ssize_t _ftec_tuning_show(struct device*, enum ftec_tuning_attrs_enum, char*);
+ssize_t _ftec_tuning_store(struct device*, enum ftec_tuning_attrs_enum, const char*, size_t);
+
 
 #endif

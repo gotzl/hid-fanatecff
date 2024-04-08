@@ -10,10 +10,6 @@
 int init_load = 4;
 module_param(init_load, int, 0);
 
-int ftecff_init(struct hid_device *hdev);
-void ftecff_remove(struct hid_device *hdev);
-int ftecff_raw_event(struct hid_device *hdev, struct hid_report *report, u8 *data, int size);
-
 static u8 ftec_get_load(struct hid_device *hid)
 {
     struct list_head *report_list = &hid->report_enum[HID_INPUT_REPORT].report_list;
