@@ -3,6 +3,9 @@
 
 #include <linux/module.h>
 #include <linux/input.h>
+#ifdef CONFIG_LEDS_CLASS
+#include <linux/leds.h>
+#endif
 
 #define FANATEC_VENDOR_ID 0x0eb7
 
@@ -19,10 +22,10 @@
 #define CSR_ELITE_WHEELBASE_DEVICE_ID 0x0011
 
 // wheels
-#define CSL_STEERING_WHEEL_P1_V2 0x08
-#define CSL_ELITE_STEERING_WHEEL_WRC_ID 0x12
+#define CSL_STEERING_WHEEL_P1_V2_ID 0x08
+#define CSL_ELITE_STEERING_WHEEL_WRC_ID 0x04
 #define CSL_ELITE_STEERING_WHEEL_MCLAREN_GT3_V2_ID 0x0b
-#define CLUBSPORT_STEERING_WHEEL_F1_IS_ID 0x12
+#define CLUBSPORT_STEERING_WHEEL_F1_IS_ID 0x21
 #define CLUBSPORT_STEERING_WHEEL_FORMULA_V2_ID 0x0a
 #define PODIUM_STEERING_WHEEL_PORSCHE_911_GT3_R_ID 0x0c
 
@@ -40,7 +43,8 @@
 
 
 // misc
-#define LEDS 9
+#define LEDS_WHEELBASE 9
+#define MAX_LEDS 15  // 9 LEDS + 6 FLAGS
 #define FTECFF_MAX_EFFECTS 16
 
 struct ftecff_effect_state {
@@ -80,6 +84,26 @@ struct ftecff_slot {
 	u8 cmd;
 };
 
+struct wheel_id {
+	u8 id;
+	char *name;
+	u8 flags;
+	u8 n_leds;
+};
+
+struct ftec_wheel_classdev {
+	struct device *dev;
+	const struct wheel_id *wheel;
+#ifdef CONFIG_LEDS_CLASS
+	u16 led_state;
+	struct led_classdev *led[MAX_LEDS];
+#endif
+#ifdef CONFIG_LEDS_CLASS_MULTICOLOR
+	u16 led_state_mc[MAX_LEDS];
+	struct led_classdev_mc *led_mc[MAX_LEDS];
+#endif
+};
+
 struct ftec_tuning_classdev {
 	struct device *dev;
 	// the data from the last update we got from the device, shifted by 1
@@ -101,10 +125,13 @@ struct ftec_drv_data {
 	u16 min_range;
 #ifdef CONFIG_LEDS_CLASS
 	u16 led_state;
-	struct led_classdev *led[LEDS];
+	struct led_classdev *led[LEDS_WHEELBASE];
 #endif    
 	u8 wheel_id;
+	bool wheel_working;
+	struct work_struct wheel_work;
 	struct ftec_tuning_classdev tuning;
+	struct ftec_wheel_classdev wheel;
 };
 
 #define FTEC_TUNING_ATTRS \
@@ -132,6 +159,7 @@ FTEC_TUNING_ATTRS
 #undef FTEC_TUNING_ATTR
 };
 
+void send_report_request_to_device(struct ftec_drv_data*);
 
 int ftecff_init(struct hid_device*);
 void ftecff_remove(struct hid_device*);
@@ -142,5 +170,10 @@ void ftec_tuning_classdev_unregister(struct ftec_tuning_classdev*);
 ssize_t _ftec_tuning_show(struct device*, enum ftec_tuning_attrs_enum, char*);
 ssize_t _ftec_tuning_store(struct device*, enum ftec_tuning_attrs_enum, const char*, size_t);
 
+int ftec_wheel_classdev_register(struct device*, struct ftec_wheel_classdev*, u8);
+void ftec_wheel_classdev_unregister(struct ftec_wheel_classdev*);
+#ifdef CONFIG_LEDS_CLASS
+int _ftec_led_update_state(struct led_classdev*, enum led_brightness, struct led_classdev*[], int, u16);
+#endif
 
 #endif
