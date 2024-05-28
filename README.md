@@ -17,7 +17,7 @@ The Wheel Base should be set to 'PC mode' for the driver to be selected (CSL Eli
 
 ## Installation
 
-Compile and install the driver
+Compile and install the driver:
 
 ```sh
 make
@@ -45,10 +45,10 @@ If you don't want to compile and install manually, following is a list of known 
 
 ### General
 
-Support for a bunch of effects, mostly copy-pasted from [new-lg4ff](https://github.com/berarma/new-lg4ff).
-Currently not properly supported effects: FF_FRICTION, FF_INERTIA (note that most games don't use these effects anyways).
+Support for a bunch of effects, mostly copy-pasted from [new-lg4ff](https://github.com/berarma/new-lg4ff).  
+Currently, FF_FRICTION and FF_INERTIA effects have experimental support in this driver.
 
-**Note:** With Proton 7/8, in some games the wheel is not detected properly when starting it for the first time (ie, when a new proton-prefix is created). The current workaround is to first start the game with Proton 6, and then switch to a later one. (See also #67)
+**Note:** With Proton 7/8, in some games the wheel is not detected properly when starting it for the first time (ie, when a new Proton-prefix is created). The current workaround is to first start the game with Proton 6, and then switch to a later one. (See also #67)
 
 ### FFB in specific Games
 
@@ -66,7 +66,7 @@ Games that are expected to work (tested by me and others more or less regularly)
 Games that don't work properly:
 
 * F1 2020/2021 (#22)
-* BeamNG.drive (proton) (#23)
+* BeamNG.drive (Proton) (#23)
 
 
 (* input devices can get mixed-up in ACC; best have only the wheel-base connected and always use the same USB-slot)   
@@ -81,13 +81,12 @@ Advanced functions of wheels/bases are available via sysfs. Base sysfs path:
 
 #### Common
 
-* set/get range: echo number in degrees to `range`
-* get id of mounted wheel: `wheel_id`
-* tuning menu (experimental): `tuning_menu/*` 
-  * get/set tuning menu slot: echo number into `SLOT`
-  * values get/set: `BLI DPR DRI FEI FF FOR SEN SHO SPR ...` (files depend on wheel-base)
-  * reset all tuning sets by echoing anything into `RESET`
-
+* Set/get range: echo number in degrees to `range`
+* Get id of mounted wheel: `wheel_id`
+* Tuning menu (experimental): `tuning_menu/*` 
+  * Get/set tuning menu slot: echo number into `SLOT`
+  * Values get/set: `BLI DPR DRI FEI FF FOR SEN SHO SPR ...` (files depend on wheel-base)
+  * Reset all tuning sets by echoing anything into `RESET`
 
 #### CSL Elite Base
 
@@ -96,11 +95,11 @@ Advanced functions of wheels/bases are available via sysfs. Base sysfs path:
 #### ClubSport Forumla1 wheel
 
 * RPM LEDs (combined with base)
-* display: `display` (negative value turns display off)
+* Display: `display` (negative value turns display off)
 
 #### CSL Elite pedals
 
-* loadcell adjustment: `load` (no readback yet)
+* Loadcell adjustment: `load` (no readback yet)
 
 #### ClubSport Pedals V3
 
@@ -114,15 +113,16 @@ To access advanced functions from user space please see the [hid-fanatecff-tools
 
 ## Planned
 
-* support more effects
-* support more devices / advances functions of devices
-* support different wheels-rims and their quirks
-* packaging for more distros
+* Support more effects
+* Support more devices / advances functions of devices
+* Support different wheels-rims and their quirks
+* Packaging for more distros
 
 ## Contact
-If you have an issue, feature request or a general question, feel free to open a ticket on github.
+
+If you have an issue, feature request or a general question, feel free to open a ticket on GitHub.
 
 ## Disclaimer
 
 I am not associated with Endor AG/Fanatec. 
-I take absolutly _no_ responsibility for any malfunction of this driver and their consequences. If your device breaks or your hands get ripped off I'm sorry, though. ;)
+I take absolutely _no_ responsibility for any malfunction of this driver and their consequences. If your device breaks or your hands get ripped off I'm sorry, though. ;)
