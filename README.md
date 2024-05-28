@@ -17,7 +17,18 @@ The Wheel Base should be set to 'PC mode' for the driver to be selected (CSL Eli
 
 ## Installation
 
-Compile and install the driver:
+### Dependencies
+This is a `out-of-tree` kernel module. Building it depends on
+* compiler (gcc)
+* make
+* kernel-headers
+
+Examples of installing kernel-headers for some distros:   
+Ubuntu: `sudo apt install linux-headers-generic` or `sudo apt install linux-headers-$(uname -r)`   
+Fedora: `sudo dnf install kernel-devel`   
+Arch: `pacman -S linux-headers`   
+
+### Compile and install the driver
 
 ```sh
 make
