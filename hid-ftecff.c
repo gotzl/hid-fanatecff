@@ -1171,7 +1171,7 @@ void ftecff_remove(struct hid_device *hdev)
 
 int ftecff_raw_event(struct hid_device *hdev, struct hid_report *report, u8 *data, int size) {
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hdev);
-	if (data[0] == 0xff && size == FTEC_TUNING_REPORT_SIZE) {
+	if (data[0] == 0xff && size == FTEC_TUNING_REPORT_SIZE && data[1] == 0x03) {
 		// shift by 1 so that we can use this as the buffer when writing back to the device
 		memcpy(&drv_data->tuning.ftec_tuning_data[0] + 1, data, sizeof(drv_data->tuning.ftec_tuning_data) - 1);
 		// notify userspace about value change
