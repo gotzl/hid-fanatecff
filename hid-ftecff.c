@@ -235,7 +235,7 @@ static ssize_t ftec_range_show(struct device *dev, struct device_attribute *attr
 
 	/* new wheelbases have tuning menu, so use this to get the range */
 	if (drv_data->quirks & FTEC_TUNING_MENU) {
-		count = _ftec_tuning_show(dev, SEN, buf);
+		count = _ftec_tuning_show(drv_data->tuning.dev, SEN, buf);
 		return count;
 	}
 
@@ -260,7 +260,7 @@ static ssize_t ftec_range_store(struct device *dev, struct device_attribute *att
 
 	/* new wheelbases have tuning menu, so use this to set the range */
 	if (drv_data->quirks & FTEC_TUNING_MENU) {
-		count = _ftec_tuning_store(dev, SEN, buf, count);
+		count = _ftec_tuning_store(drv_data->tuning.dev, SEN, buf, count);
 		return count;
 	}
 
