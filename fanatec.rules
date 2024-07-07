@@ -12,8 +12,10 @@ RUN+="/bin/sh -c 'cd %S%p; chown -f :games range display load rumble leds/*/brig
 GOTO="fanatec_end"
 
 LABEL="ftec_input_settings"
-# remove deadzone/fuzz
-RUN{program}+="/usr/bin/evdev-joystick --evdev $devnode --deadzone 0 --fuzz 0"
+# remove deadzone/fuzz, fix ranges of analog stick
+RUN+="/bin/sh -c '/usr/bin/evdev-joystick --evdev $devnode --deadzone 0 --fuzz 0 --flatness 0; \
+	/usr/bin/evdev-joystick --evdev $devnode --axis 3 --min -128 --max 128; \
+	/usr/bin/evdev-joystick --evdev $devnode --axis 4 --min -128 --max 128'"
 GOTO="fanatec_end"
 
 LABEL="ftec_tuning_settings"
