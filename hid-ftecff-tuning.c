@@ -206,6 +206,39 @@ static DEVICE_ATTR(RESET, S_IWUSR | S_IWGRP, NULL, ftec_tuning_reset);
 FTEC_TUNING_ATTRS
 #undef FTEC_TUNING_ATTR
 
+static ssize_t ftec_tuning_advanced_mode_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct hid_device *hid = to_hid_device(dev->parent);
+	struct ftec_drv_data *drv_data = hid_get_drvdata(hid);
+	if (!drv_data) {
+		hid_err(hid, "Private driver data not found!\n");
+		return 0;
+	}
+	return scnprintf(buf, PAGE_SIZE, "%u\n", drv_data->tuning.advanced_mode);
+}
+
+static ssize_t ftec_tuning_advanced_mode_store(struct device *dev, struct device_attribute *attr, 
+		const char *buf, size_t count)
+{
+	struct hid_device *hid = to_hid_device(dev->parent);
+	struct ftec_drv_data *drv_data = hid_get_drvdata(hid);
+	u8 advanced_mode;
+	if (!drv_data) {
+		hid_err(hid, "Private driver data not found!\n");
+		return 0;
+	}
+	if (kstrtou8(buf, 0, &advanced_mode) == 0) {
+		if (advanced_mode != drv_data->tuning.advanced_mode) {
+			u8 *buffer = kcalloc(FTEC_TUNING_REPORT_SIZE, sizeof(u8), GFP_KERNEL);
+			buffer[0] = 0xff;
+			buffer[1] = 0x03;
+			buffer[2] = 0x06;
+			(void)hid_hw_output_report(hid, buffer, FTEC_TUNING_REPORT_SIZE);
+		}
+	}
+	return count;
+}
+static DEVICE_ATTR(advanced_mode, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_tuning_advanced_mode_show, ftec_tuning_advanced_mode_store);
 
 static struct class ftec_tuning_class = {
 	.name = "ftec_tuning",
@@ -227,6 +260,8 @@ int ftec_tuning_classdev_register(struct device *parent,
 	ret = device_create_file(ftec_tuning_cdev->dev, &dev_attr_##name); \
 	if (ret) \
 		hid_warn(hdev, "Unable to create sysfs interface for '%s', errno %d\n", #name, ret); \
+
+	CREATE_SYSFS_FILE(advanced_mode)
 
 	CREATE_SYSFS_FILE(RESET)
 	CREATE_SYSFS_FILE(SLOT)
@@ -274,6 +309,8 @@ void ftec_tuning_classdev_unregister(struct ftec_tuning_classdev *ftec_tuning_cd
 		return;
 	
 #define REMOVE_SYSFS_FILE(name) device_remove_file(ftec_tuning_cdev->dev, &dev_attr_##name); \
+
+	REMOVE_SYSFS_FILE(advanced_mode)
 
 	REMOVE_SYSFS_FILE(RESET)
 	REMOVE_SYSFS_FILE(SLOT)

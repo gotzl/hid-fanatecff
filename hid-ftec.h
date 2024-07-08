@@ -84,6 +84,7 @@ struct ftec_tuning_classdev {
 	struct device *dev;
 	// the data from the last update we got from the device, shifted by 1
 	u8 ftec_tuning_data[FTEC_TUNING_REPORT_SIZE];
+	u8 advanced_mode;
 };
 
 struct ftec_drv_data {

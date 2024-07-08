@@ -1174,6 +1174,8 @@ int ftecff_raw_event(struct hid_device *hdev, struct hid_report *report, u8 *dat
 	if (data[0] == 0xff && size == FTEC_TUNING_REPORT_SIZE && data[1] == 0x03) {
 		// shift by 1 so that we can use this as the buffer when writing back to the device
 		memcpy(&drv_data->tuning.ftec_tuning_data[0] + 1, data, sizeof(drv_data->tuning.ftec_tuning_data) - 1);
+		drv_data->tuning.advanced_mode = !(drv_data->tuning.ftec_tuning_data[3] & 0x80);
+		drv_data->tuning.ftec_tuning_data[3] = drv_data->tuning.ftec_tuning_data[3]&0xf;
 		// notify userspace about value change
 		if (!(IS_ERR_OR_NULL(drv_data->tuning.dev)))
 			kobject_uevent(&drv_data->tuning.dev->kobj, KOBJ_CHANGE);
