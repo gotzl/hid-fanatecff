@@ -81,20 +81,21 @@ Games that don't work properly:
 
 
 (* input devices can get mixed-up in ACC; best have only the wheel-base connected and always use the same USB-slot)   
-(** uses FF_FRICTION)   
+(** uses experimental FF_FRICTION effect)
 (*** unsure if all effects are present)   
 
 ### Device specific
 
 Advanced functions of wheels/bases are available via sysfs. Base sysfs path:
 
-`/sys/module/hid_fanatec/drivers/hid:fanatec/0003:0EB7:0005.*/`
+`/sys/module/hid_fanatec/drivers/hid:fanatec/0003:0EB7:<PID>.*/`
 
 #### Common
 
 * Set/get range: echo number in degrees to `range`
 * Get id of mounted wheel: `wheel_id`
 * Tuning menu (experimental): `tuning_menu/*` 
+  * Get/set 'standard'/'advanced' mode: `andvanced_mode`
   * Get/set tuning menu slot: echo number into `SLOT`
   * Values get/set: `BLI DPR DRI FEI FF FOR SEN SHO SPR ...` (files depend on wheel-base)
   * Reset all tuning sets by echoing anything into `RESET`
