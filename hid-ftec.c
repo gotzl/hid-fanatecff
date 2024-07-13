@@ -520,28 +520,25 @@ static int ftec_client_ll_raw_request(struct hid_device *hdev,
 		if (params->op == 0x3 || params->count == 0) {
 			(void)ff->playback(inputdev, effect->id, 0);
 			effect->id = 0;
-			// FIXME: also unload?
 			break;
-		}
-
-		if (params->op == 0x2) {
-			// stop all other effects
-			struct ff_effect *other_effect;
-			for (size_t i = 0; i < ARRAY_SIZE(drv_data->client.effects); ++i) {
-				other_effect = &drv_data->client.effects[i];
-				if (other_effect->id > 0 && other_effect != effect) {
-					(void)ff->playback(inputdev, other_effect->id, 0);
-					other_effect->id = 0;
-					// FIXME: also unload?
+		} else {
+			if (params->op == 0x2) {
+				// stop all other effects
+				struct ff_effect *other_effect;
+				for (size_t i = 0; i < ARRAY_SIZE(drv_data->client.effects); ++i) {
+					other_effect = &drv_data->client.effects[i];
+					if (other_effect->id > 0 && other_effect != effect) {
+						(void)ff->playback(inputdev, other_effect->id, 0);
+						other_effect->id = 0;
+					}
 				}
+
 			}
-
-		}
-
-		if (params->op == 0x1) {
-			if (!effect->id) {
-				effect->id = params->id;
-				(void)ff->upload(inputdev, effect, NULL);
+			if (params->op == 0x1 || params->op == 0x2) {
+				if (!effect->id) {
+					effect->id = params->id;
+					(void)ff->upload(inputdev, effect, NULL);
+				}
 			}
 		}
 
@@ -554,7 +551,7 @@ static int ftec_client_ll_raw_request(struct hid_device *hdev,
 			// reset: stop and unload all effects
 			for (size_t i = 0; i < ARRAY_SIZE(drv_data->client.effects); ++i) {
 				if (drv_data->client.effects[i].id) {
-					(void)ff->playback(inputdev, effect->id, 0);
+					(void)ff->playback(inputdev, drv_data->client.effects[i].id, 0);
 					memset(&drv_data->client.effects[i], 0, sizeof(struct ff_effect));
 				}
 			}
