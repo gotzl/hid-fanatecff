@@ -6,7 +6,6 @@
 #include <linux/input.h>
 
 #include "hid-ftec.h"
-#include "hid-ftec-pid.h"
 
 // adjustabel initial value for break load cell
 int init_load = 4;
@@ -188,6 +187,11 @@ static int ftec_init(struct hid_device *hdev) {
 	return 0;
 }
 
+
+const u8 rdesc_pid_ffb[] = {
+#include "hid-ftec-pid.h"
+};
+
 static int ftec_client_ll_parse(struct hid_device *hdev)
 {
 	struct ftec_drv_data *drv_data = hdev->driver_data;
@@ -201,7 +205,7 @@ static int ftec_client_ll_parse(struct hid_device *hdev)
 			ref_pos != ref_end && pos != end;
 			ref_pos += size + 1, pos += size + 1) {
 
-		if (*ref_pos == 0xC0 && --depth == 0 && report_id < 2) {
+		if (*ref_pos == 0xC0 && --depth == 0 && report_id == 1) {
 			// inject the pid ffb collection
 			if (pos + sizeof(rdesc_pid_ffb) > end) {
 				hid_err(hdev, "Need %lu bytes to inject ffb\n", sizeof(rdesc_pid_ffb) );
@@ -253,6 +257,96 @@ static void ftec_client_ll_close(struct hid_device *hdev)
 	drv_data->client.opened--;
 }
 
+struct __attribute__((packed)) create_new_effect {
+	u8 report_id;
+	u8 type_idx;
+	u16 byte_count;
+};
+
+struct __attribute__((packed)) block_load {
+	u8 report_id;
+	u8 id;
+	u8 status;
+	u16 ram_pool_avail;
+};
+
+struct __attribute__((packed)) set_constant {
+	u8 report_id;
+	u8 id;
+	s16 level;
+};
+
+struct __attribute__((packed)) set_envelope {
+	u8 report_id;
+};
+
+struct __attribute__((packed)) set_condition {
+	u8 report_id;
+	u8 id;
+	u8 dir_enable;
+	s16 center;
+	s16 right_coeff;
+	s16 left_coeff;
+	u16 right_saturation;
+	u16 left_saturation;
+	u16 deadband;
+};
+
+struct __attribute__((packed)) set_periodic {
+	u8 report_id;
+	u8 id;
+	u16 magnitude;
+	s16 offset;
+	u16 phase;
+	u16 period;
+};
+
+struct __attribute__((packed)) set_effect {
+	u8 report_id;
+	u8 id;
+	u8 type;
+	u16 length;
+	u16 delay;
+	u16 interval;
+	u8 gain;
+	u8 button;
+	u8 enable;
+	u16 direction;
+	u16 __pad1;
+	// u16 __pad2;
+};
+
+struct __attribute__((packed)) effect_operation {
+	u8 report_id;
+	u8 id;
+	u8 op;
+	u8 count;
+};
+
+struct __attribute__((packed)) device_control {
+	u8 report_id;
+	u8 ctrl;
+};
+
+struct __attribute__((packed)) block_free {
+	u8 report_id;
+	u8 id;
+};
+
+static int check_idx(struct ftec_drv_data *drv_data, s16 idx, unsigned char reportnum) {
+	if (idx < 0 || idx >= ARRAY_SIZE(drv_data->client.effects)) {
+		hid_err(drv_data->hid, "Report %u: Invalid index %i\n", reportnum, idx);
+		return 0;
+        }
+	return 1;
+}
+
+static struct ff_effect *get_effect(struct ftec_drv_data *drv_data, size_t id, unsigned char reportnum) {
+	if (!check_idx(drv_data, id - 1, reportnum))
+		return NULL;
+	return &drv_data->client.effects[id - 1];
+}
+
 static int ftec_client_ll_raw_request(struct hid_device *hdev,
 				unsigned char reportnum, u8 *buf,
 				size_t count, unsigned char report_type,
@@ -263,10 +357,16 @@ static int ftec_client_ll_raw_request(struct hid_device *hdev,
 	struct input_dev *inputdev = hidinput->input;
 	struct ff_device *ff = hidinput->input->ff;
 	struct ff_effect *effect;
-	// effects as listed in usage 20
-	const u8 effects[] = {
+	// supported effects, have to be in order as listed in usage 21 !!
+	const u8 ff_effects[] = {
 		FF_CONSTANT,
+		FF_RAMP,
+		FF_CUSTOM,
+		FF_SQUARE,
 		FF_SINE,
+		FF_TRIANGLE,
+		FF_SAW_UP,
+		FF_SAW_DOWN,
 		FF_SPRING,
 		FF_DAMPER,
 		FF_INERTIA,
@@ -289,175 +389,185 @@ static int ftec_client_ll_raw_request(struct hid_device *hdev,
 	}
 
 #define PID_REPORT_SET_EFFECT 		17  // usage 0x21
+#define PID_REPORT_SET_ENVELOPE         18  // usage 0x5a
 #define PID_REPORT_SET_CONDITION 	19  // usage 0x5f
 #define PID_REPORT_CREATE_NEW_EFFECT 	20  // usage 0xab
 #define PID_REPORT_SET_CONSTANT_FORCE   21  // usage 0x73
 #define PID_REPORT_BLOCK_LOAD 		22  // usage 0x89
+#define PID_REPORT_PID_POOL             23  // usage 0x7f
+#define PID_REPORT_SET_RAMP_FORCE       24  // usage 0x74
+#define PID_REPORT_DEVICE_GAIN	        25  // usage 0x7d
 #define PID_REPORT_EFFECT_OPERATION     26  // usage 0x77
 #define PID_REPORT_BLOCK_FREE 		27  // usage 0x90
 #define PID_REPORT_DEVICE_CONTROL 	28  // usage 0x96
 #define PID_REPORT_SET_PERIODIC 	29  // usage 0x6e
-#define check_idx if (idx >= ARRAY_SIZE(drv_data->client.effects)) { \
-			hid_err(hdev, "Invalid index %lu\n", idx);   \
-			return 0;                                    \
-                  }
-#define get_effect check_idx \
-	effect = &drv_data->client.effects[idx];
-#define check_count(num) if (count != num) { \
-			hid_err(hdev, "Invalid count %lu\n", count);  \
-			return 0;                                     \
-                  }
+
+#define map_pid_type( __type) \
+	__type *params;       \
+	if (sizeof(__type) != count) { \
+		hid_err(hdev, "Report %u: Invalid report size %lu, expected %lu", reportnum, count, sizeof(__type)); \
+		return 0; \
+	} \
+	params = (__type*)buf;
 
 	switch (reportnum) {
 	case PID_REPORT_CREATE_NEW_EFFECT: {
-		size_t type = buf[1];
-		size_t idx = type-1;
-
-		get_effect
-
-		if (effect->id != 0) {
-			// already allocated effect, stop the old in favor of the new one?
-			(void)ff->playback(inputdev, effect->id, 0);
+		map_pid_type(struct create_new_effect);
+		size_t type_idx = params->type_idx - 1;
+		if (drv_data->client.current_id == ARRAY_SIZE(drv_data->client.effects)) {
+			hid_err(hdev, "can't find free slot for new effect");
+			return 0;
 		}
-
-		effect->id = type;
-		if (effects[idx] == FF_SINE) {
+		effect = &drv_data->client.effects[drv_data->client.current_id];
+		if (ff_effects[type_idx] == FF_SINE) {
 			effect->type = FF_PERIODIC;
-			effect->u.periodic.waveform = effects[idx];
+			effect->u.periodic.waveform = ff_effects[type_idx];
 		} else {
-			effect->type = effects[idx];
+			effect->type = ff_effects[type_idx];
 		}
-
-		// store current effect to continue with it in report 22
-		drv_data->client.current_effect = effect;
 		break;
 	}
 	case PID_REPORT_BLOCK_LOAD: {
-		check_count(5)
-
-		buf[0] = reportnum;
-		effect = drv_data->client.current_effect;
-		if (effect == NULL || effect->id == 0) {
-			buf[1] = 0x00;
-			buf[2] = 0x02;
+		map_pid_type(struct block_load);
+		params->report_id = reportnum;
+		if (drv_data->client.current_id == ARRAY_SIZE(drv_data->client.effects)) {
+			params->id = 0x00;
+			params->status = 0x02;
 		} else {
-			buf[1] = effect->id;  // effect id
-			buf[2] = 0x01;        // load status: 1 success, 2 full, 3 error
-			drv_data->client.current_effect = NULL;
+			drv_data->client.current_id++; 
+			params->id = drv_data->client.current_id;
+			params->status = 0x01;  // load status: 1 success, 2 full, 3 error
 		}
-		buf[3] = 0xff;
-		buf[4] = 0xff;
+		params->ram_pool_avail = 0xffff;
 		break;
 	}
 	case PID_REPORT_SET_CONSTANT_FORCE: {
-		size_t idx = buf[1]-1;
-		check_count(4)
-
-		get_effect
-
-		effect->u.constant.level = ((s16)buf[3]) << 8 | buf[2];
-		(void)ff->upload(inputdev, effect, NULL);
+		map_pid_type(struct set_constant);
+		if (!(effect = get_effect(drv_data, params->id, reportnum)))
+			return 0;
+		effect->u.constant.level = params->level;
+		if (effect->id)
+			(void)ff->upload(inputdev, effect, NULL);
 		break;
 	}
+	case PID_REPORT_SET_ENVELOPE: {
+		return 0;
+	}
 	case PID_REPORT_SET_CONDITION: {
-		size_t idx = buf[1]-1;
-		check_count(15)
-
-		get_effect
-
-		struct ff_condition_effect *condition = &effect->u.condition[buf[2]&0x1];
-		condition->center = ((s16)buf[4]) << 8 | buf[3];
-		condition->right_coeff = ((s16)buf[6]) << 8 | buf[5];
-		condition->left_coeff = ((s16)buf[8]) << 8 | buf[7];
-		condition->right_saturation = ((u16)buf[10]) << 8 | buf[9];
-		condition->left_saturation = ((u16)buf[12]) << 8 | buf[11];
-		condition->deadband = ((u16)buf[14]) << 8 | buf[13];
-		(void)ff->upload(inputdev, effect, NULL);
+		map_pid_type(struct set_condition);
+		if (!(effect = get_effect(drv_data, params->id, reportnum)))
+			return 0;
+		struct ff_condition_effect *condition = &effect->u.condition[params->dir_enable&0x1];
+		condition->center = params->center;
+		condition->right_coeff = params->right_coeff;
+		condition->left_coeff = params->left_coeff;
+		condition->right_saturation = params->right_saturation;
+		condition->left_saturation = params->left_saturation;
+		condition->deadband = params->deadband;
+		if (effect->id)
+			(void)ff->upload(inputdev, effect, NULL);
 		break;
 	}
 	case PID_REPORT_SET_PERIODIC: {
-		size_t idx = buf[1]-1;
-		check_count(11)
-		get_effect
-
-		effect->u.periodic.period = ((u16)buf[10]) << 8 | buf[9];
+		map_pid_type(struct set_periodic);
+		if (!(effect = get_effect(drv_data, params->id, reportnum)))
+			return 0;
+		effect->u.periodic.period = params->period;
 		// FIXME: what's this all about ??
 		if (effect->u.periodic.period != 0) {
-			effect->u.periodic.magnitude = ((s16)buf[4]) << 8 | buf[3];
-			effect->u.periodic.offset = ((s16)buf[6]) << 8 | buf[5];
-			effect->u.periodic.phase = ((u16)buf[8] << 8 | buf[7]) * 0x10000 / 18000;
+			effect->u.periodic.magnitude = params->magnitude;
+			effect->u.periodic.offset = params->offset;
+			effect->u.periodic.phase = params->phase * 0x10000 / 36000;
 		} else {
-			effect->type =  FF_CONSTANT;
-			effect->u.constant.level = ((s16)buf[4]) << 8 | buf[3];
+			effect->type = FF_CONSTANT;
+			effect->u.constant.level = params->magnitude;
 		}
-		(void)!ff->upload(inputdev, effect, NULL);
+		if (effect->id)
+			(void)ff->upload(inputdev, effect, NULL);
 		break;
 	}
 	case PID_REPORT_SET_EFFECT: {
-		size_t idx = buf[1]-1;
-		check_count(16)
-		get_effect
+		map_pid_type(struct set_effect);
+		if (!(effect = get_effect(drv_data, params->id, reportnum)))
+			return 0;
+		effect->replay.length = params->length == 0xffff ? 0 : params->length;
+		effect->replay.delay = params->delay;
+		effect->trigger.interval = params->interval;
+		// buf[9]: gain
+		effect->trigger.button = params->button;
 
-		u16 duration = buf[4] << 8 | buf[3];
-		effect->replay.length = duration == 0xffff ? 0 : duration;
-		effect->trigger.interval = buf[6] << 8 | buf[5];
-		effect->trigger.button = buf[10];
-
-		// FIXME: hardcoded for now, not yet figured out what games do here
-		effect->direction = 0x4000;  // ((u16)buf[13] << 8 | buf[12]) * 0x10000 / 18000;
-		(void)ff->upload(inputdev, effect, NULL);
+		// FIXME: default effect direction
+		effect->direction = 0x4000;
+		// Note: needs to be aligned to Usage 0x55/0x56
+		if (params->enable & 0x1 && params->enable >> 4 & 0x1) {
+			effect->direction = params->direction * 0x10000 / 36000;
+		}
+		if (effect->id)
+			(void)ff->upload(inputdev, effect, NULL);
 		break;
 	}
 	case PID_REPORT_EFFECT_OPERATION: {
-		size_t idx = buf[1]-1;
-		check_count(4)
-		get_effect
+		map_pid_type(struct effect_operation);
+		if (!(effect = get_effect(drv_data, params->id, reportnum)))
+			return 0;
+
+		if (effect->type == 0) {
+			hid_err(hdev, "Invalid type %u\n", effect->type);
+			return 0;
+		}
 
 		// Effect Operation: Op Effect Start/Start Solo/Stop
-		if (buf[2] == 0x2) {
+		if (params->op == 0x3 || params->count == 0) {
+			(void)ff->playback(inputdev, effect->id, 0);
+			effect->id = 0;
+			// FIXME: also unload?
+			break;
+		}
+
+		if (params->op == 0x2) {
 			// stop all other effects
 			struct ff_effect *other_effect;
 			for (size_t i = 0; i < ARRAY_SIZE(drv_data->client.effects); ++i) {
 				other_effect = &drv_data->client.effects[i];
 				if (other_effect->id > 0 && other_effect != effect) {
 					(void)ff->playback(inputdev, other_effect->id, 0);
+					other_effect->id = 0;
+					// FIXME: also unload?
 				}
 			}
 
 		}
-		if (effect->id == 0) {
-			hid_err(hdev, "Invalid effect id %u\n", effect->id);
-			return 0;
+
+		if (params->op == 0x1) {
+			if (!effect->id) {
+				effect->id = params->id;
+				(void)ff->upload(inputdev, effect, NULL);
+			}
 		}
-		if (effect->type == 0) {
-			hid_err(hdev, "Invalid type %u\n", effect->type);
-			return 0;
-		}
-		(void)ff->playback(inputdev, effect->id, buf[3]);
+
+		(void)ff->playback(inputdev, effect->id, params->count);
 		break;
 	}
 	case PID_REPORT_DEVICE_CONTROL: {
-		if (buf[1] == 0x4) {
+		map_pid_type(struct device_control);
+		if (params->ctrl == 0x4) {
 			// reset: stop and unload all effects
 			for (size_t i = 0; i < ARRAY_SIZE(drv_data->client.effects); ++i) {
-				effect = &drv_data->client.effects[i];
-				if (effect->id > 0) {
+				if (drv_data->client.effects[i].id) {
 					(void)ff->playback(inputdev, effect->id, 0);
-					effect->id = 0;
+					memset(&drv_data->client.effects[i], 0, sizeof(struct ff_effect));
 				}
 			}
+			drv_data->client.current_id = 0;
 		}
 		break;
 	}
 	case PID_REPORT_BLOCK_FREE: {
-		size_t idx = buf[1]-1;
-		get_effect
-
-		if (effect->id > 0) {
-			// FIXME: also stop playing the effect??
-			(void)ff->playback(inputdev, effect->id, 0);
-			effect->id = 0;
-		}
+		map_pid_type(struct block_free);
+		if (!(effect = get_effect(drv_data, params->id, reportnum)))
+			return 0;
+		(void)ff->playback(inputdev, effect->id, 0);
+		memset(effect, 0, sizeof(struct ff_effect));
 		break;
 	}
 	default:
