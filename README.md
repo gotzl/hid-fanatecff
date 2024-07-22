@@ -41,7 +41,7 @@ Reload the new udev rules, depending on the Linux distribution, without rebootin
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
-This installs the kernel module `hid-fanatec.ko` in the `hid` dir of the running kernel and puts `fanatec.rules` into `/etc/udev/rules.d`. These rules allows access to the device for `users` group and sets deadzone/fuzz to 0 so that any wheel input is detected immediately.
+This installs the kernel module `hid-fanatec.ko` in the `hid` dir of the running kernel and puts `fanatec.rules` into `/etc/udev/rules.d`. These rules allows access to the device for `games` group and sets deadzone/fuzz to 0 so that any wheel input is detected immediately.
 The driver should get loaded automatically when the wheel is plugged.
 
 ### Packaging
