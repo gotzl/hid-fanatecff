@@ -8,7 +8,7 @@ GOTO="fanatec_end"
 LABEL="ftec_module_settings"
 # let everyone in games group read/write device attributes, such as range, display, LEDs
 # FIXME: this should be narrowed down in the future!
-RUN+="/bin/sh -c 'cd %S%p; chown -f :games range display load rumble leds/*/brightness; chmod -f 660 leds/*/brightness'"
+RUN+="/bin/sh -c 'cd %S%p && (chown -f :games range display load rumble leds/*/brightness; chmod -f 660 leds/*/brightness)'"
 GOTO="fanatec_end"
 
 LABEL="ftec_input_settings"
@@ -20,8 +20,8 @@ GOTO="fanatec_end"
 
 LABEL="ftec_tuning_settings"
 # let everyone in games group read/write tuning-menu entries
-# FIXME: this should be narrowed down in the future!
-RUN+="/bin/sh -c 'cd %S%p; find . -type f -exec chown -f :games {} \;'"
+# FIXME: this should be narrowed down in the future! Also, this fires every time a value is changed!
+RUN+="/bin/sh -c 'cd %S%p && chown -f :games advanced_mode RESET SLOT SEN FF SHO BLI DRI FOR SPR DPR NDP NFR FEI INT NIN FUL || true'"
 GOTO="fanatec_end"
 
 LABEL="fanatec_end"
