@@ -103,7 +103,7 @@ Advanced functions of wheels/bases are available via sysfs. Generally, these fil
 
 #### CSL Elite Base
 
-* RPM LEDs: `leds/0003:0EB7:0005.*::RPMx/brightness` (x from 1 to 9)
+* RPM LEDs: `/sys/class/leds/0003:0EB7:0005.*::RPMx/brightness` (x from 1 to 9)
 
 #### ClubSport Forumla1 wheel
 
