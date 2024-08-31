@@ -73,6 +73,7 @@ Games that are expected to work (tested by me and others more or less regularly)
 * rFactor2
 * Rennsport
 * RRRE
+* Wreckfest
 
 Games that don't work properly:
 
