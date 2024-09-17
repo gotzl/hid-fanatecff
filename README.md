@@ -106,7 +106,7 @@ Advanced functions of wheels/bases are available via sysfs. Generally, these fil
 * RPM LEDs: `/sys/module/hid_fanatec/drivers/hid:fanatec/0003:0EB7:<PID>.*/leds/0003:0EB7:0005.*::RPMx/brightness`  
   Or in path: `/sys/class/leds/0003:0EB7:0005.*::RPMx/brightness` (x from 1 to 9)
 
-#### ClubSport Forumla1 wheelcd 
+#### ClubSport Forumla1 
 
 * RPM LEDs (combined with base)
 * Display: `display` (negative value turns display off)
