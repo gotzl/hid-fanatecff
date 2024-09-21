@@ -12,7 +12,7 @@ int init_load = 4;
 module_param(init_load, int, 0);
 // expose PID HID descriptor via hidraw
 bool hidraw_pid = true;
-module_param(hidraw_pid, bool, 1);
+module_param(hidraw_pid, bool, 0);
 
 
 static u8 ftec_get_load(struct hid_device *hid)
@@ -188,28 +188,42 @@ static int ftec_init(struct hid_device *hdev) {
 }
 
 
+#define PID_REPORT_STATE                16  // usage 0x92 (input)
+#define PID_REPORT_DEVICE_CONTROL 	16  // usage 0x96
+#define PID_REPORT_SET_EFFECT 		17  // usage 0x21
+#define PID_REPORT_SET_ENVELOPE         18  // usage 0x5a
+#define PID_REPORT_SET_CONDITION 	19  // usage 0x5f
+#define PID_REPORT_CREATE_NEW_EFFECT 	20  // usage 0xab
+#define PID_REPORT_SET_CONSTANT_FORCE   21  // usage 0x73
+#define PID_REPORT_BLOCK_LOAD 		22  // usage 0x89 (input)
+#define PID_REPORT_PID_POOL             23  // usage 0x7f
+#define PID_REPORT_SET_RAMP_FORCE       24  // usage 0x74
+#define PID_REPORT_DEVICE_GAIN	        25  // usage 0x7d
+#define PID_REPORT_EFFECT_OPERATION     26  // usage 0x77
+#define PID_REPORT_BLOCK_FREE 		27  // usage 0x90
+#define PID_REPORT_SET_PERIODIC 	29  // usage 0x6e
+
 const u8 rdesc_pid_ffb[] = {
 #include "hid-ftec-pid.h"
 };
 
-static int ftec_client_ll_parse(struct hid_device *hdev)
+static int ftec_client_rdesc_fixup(struct ftec_drv_data_client *client, u8 *dev_rdesc, size_t dev_rsize)
 {
-	struct ftec_drv_data *drv_data = hdev->driver_data;
-	u8 *rdesc = drv_data->client.rdesc, *ref_pos, *ref_end, *pos, *end;
-	unsigned rsize, depth = 0;
+	u8 *rdesc = client->rdesc, *ref_pos, *ref_end, *pos, *end;
+	unsigned depth = 0;
 	u8 size, report_id = 255;
 
-	for (ref_pos = drv_data->hid->dev_rdesc,
-			ref_end = drv_data->hid->dev_rdesc + drv_data->hid->dev_rsize,
-			pos = rdesc, end = rdesc + sizeof(drv_data->client.rdesc);
+	for (ref_pos = dev_rdesc,
+			ref_end = dev_rdesc + dev_rsize,
+			pos = rdesc, end = rdesc + sizeof(client->rdesc);
 			ref_pos != ref_end && pos != end;
 			ref_pos += size + 1, pos += size + 1) {
 
 		if (*ref_pos == 0xC0 && --depth == 0 && report_id == 1) {
 			// inject the pid ffb collection
 			if (pos + sizeof(rdesc_pid_ffb) > end) {
-				hid_err(hdev, "Need %lu bytes to inject ffb\n", sizeof(rdesc_pid_ffb) );
-				return 0;
+				hid_err(client->hdev, "Need %lu bytes to inject ffb\n", sizeof(rdesc_pid_ffb) );
+				return 1;
 			}
 			memcpy(pos, rdesc_pid_ffb, sizeof(rdesc_pid_ffb));
 			pos += sizeof(rdesc_pid_ffb);
@@ -219,8 +233,8 @@ static int ftec_client_ll_parse(struct hid_device *hdev)
 		if (size == 3) size = 4;
 		if (ref_pos + size > ref_end || pos + size > end)
 		{
-		    hid_err(hdev, "Need %d bytes to read item value\n", size );
-		    return 0;
+		    hid_err(client->hdev, "Need %d bytes to read item value\n", size );
+		    return 1;
 		}
 
 		memcpy(pos, ref_pos, size + 1);
@@ -230,9 +244,20 @@ static int ftec_client_ll_parse(struct hid_device *hdev)
 		if (*ref_pos == 0xA1)
 			++depth;
 	}
+	client->rsize = pos - rdesc;
+	return 0;
+}
 
-	rsize = pos - rdesc;
-	return hid_parse_report(hdev, rdesc, rsize);
+static int ftec_client_ll_parse(struct hid_device *hdev)
+{
+	struct ftec_drv_data *drv_data = hdev->driver_data;
+	int ret;
+	if ((ret = ftec_client_rdesc_fixup(
+			&drv_data->client,
+			drv_data->hid->dev_rdesc,
+			drv_data->hid->dev_rsize)))
+		return ret;
+	return hid_parse_report(hdev, drv_data->client.rdesc, drv_data->client.rsize);
 }
 
 static int ftec_client_ll_start(struct hid_device *hdev)
@@ -257,6 +282,7 @@ static void ftec_client_ll_close(struct hid_device *hdev)
 	drv_data->client.opened--;
 }
 
+#ifdef DEVICE_MANAGED
 struct __attribute__((packed)) create_new_effect {
 	u8 report_id;
 	u8 type_idx;
@@ -270,6 +296,12 @@ struct __attribute__((packed)) block_load {
 	u16 ram_pool_avail;
 };
 
+struct __attribute__((packed)) block_free {
+	u8 report_id;
+	u8 id;
+};
+#endif
+
 struct __attribute__((packed)) set_constant {
 	u8 report_id;
 	u8 id;
@@ -278,18 +310,23 @@ struct __attribute__((packed)) set_constant {
 
 struct __attribute__((packed)) set_envelope {
 	u8 report_id;
+	u8 id;
+	u16 attack_level;
+	u16 fade_level;
+	u16 attack_time;
+	u16 fade_time;
 };
 
 struct __attribute__((packed)) set_condition {
 	u8 report_id;
 	u8 id;
-	u8 dir_enable;
-	s16 center;
-	s16 right_coeff;
-	s16 left_coeff;
-	u16 right_saturation;
-	u16 left_saturation;
-	u16 deadband;
+	u8 block_offset;
+	s16 offset;
+	s16 positive_coeff;
+	s16 negative_coeff;
+	u16 positive_saturation;
+	u16 negative_saturation;
+	u16 dead_band;
 };
 
 struct __attribute__((packed)) set_periodic {
@@ -304,16 +341,15 @@ struct __attribute__((packed)) set_periodic {
 struct __attribute__((packed)) set_effect {
 	u8 report_id;
 	u8 id;
-	u8 type;
-	u16 length;
-	u16 delay;
-	u16 interval;
+	u8 type_idx;
+	u16 duration;
+	u16 trigger_repeat_interval;
+	u16 sample_period;
+	u16 start_delay;
 	u8 gain;
 	u8 button;
 	u8 enable;
-	u16 direction;
-	u16 __pad1;
-	// u16 __pad2;
+	u16 direction[2];
 };
 
 struct __attribute__((packed)) effect_operation {
@@ -328,10 +364,6 @@ struct __attribute__((packed)) device_control {
 	u8 ctrl;
 };
 
-struct __attribute__((packed)) block_free {
-	u8 report_id;
-	u8 id;
-};
 
 static int check_idx(struct ftec_drv_data *drv_data, s16 idx, unsigned char reportnum) {
 	if (idx < 0 || idx >= ARRAY_SIZE(drv_data->client.effects)) {
@@ -347,6 +379,14 @@ static struct ff_effect *get_effect(struct ftec_drv_data *drv_data, size_t id, u
 	return &drv_data->client.effects[id - 1];
 }
 
+static void ftec_client_report_state(struct hid_device *hdev, u8 device_state, u8 effect_state, u8 effect_id) {
+	u8 buf[3];
+	buf[0] = PID_REPORT_STATE;
+	buf[1] = device_state | effect_state;
+	buf[2] = effect_id;
+	hidraw_report_event(hdev, buf, sizeof(buf));
+}
+
 static int ftec_client_ll_raw_request(struct hid_device *hdev,
 				unsigned char reportnum, u8 *buf,
 				size_t count, unsigned char report_type,
@@ -356,7 +396,6 @@ static int ftec_client_ll_raw_request(struct hid_device *hdev,
 	struct hid_input *hidinput = list_entry(drv_data->hid->inputs.next, struct hid_input, list);
 	struct input_dev *inputdev = hidinput->input;
 	struct ff_device *ff = hidinput->input->ff;
-	struct ff_effect *effect;
 	// supported effects, have to be in order as listed in usage 21 !!
 	const u8 ff_effects[] = {
 		FF_CONSTANT,
@@ -388,20 +427,6 @@ static int ftec_client_ll_raw_request(struct hid_device *hdev,
 		printk(KERN_CONT "\n");
 	}
 
-#define PID_REPORT_SET_EFFECT 		17  // usage 0x21
-#define PID_REPORT_SET_ENVELOPE         18  // usage 0x5a
-#define PID_REPORT_SET_CONDITION 	19  // usage 0x5f
-#define PID_REPORT_CREATE_NEW_EFFECT 	20  // usage 0xab
-#define PID_REPORT_SET_CONSTANT_FORCE   21  // usage 0x73
-#define PID_REPORT_BLOCK_LOAD 		22  // usage 0x89
-#define PID_REPORT_PID_POOL             23  // usage 0x7f
-#define PID_REPORT_SET_RAMP_FORCE       24  // usage 0x74
-#define PID_REPORT_DEVICE_GAIN	        25  // usage 0x7d
-#define PID_REPORT_EFFECT_OPERATION     26  // usage 0x77
-#define PID_REPORT_BLOCK_FREE 		27  // usage 0x90
-#define PID_REPORT_DEVICE_CONTROL 	28  // usage 0x96
-#define PID_REPORT_SET_PERIODIC 	29  // usage 0x6e
-
 #define map_pid_type( __type) \
 	__type *params;       \
 	if (sizeof(__type) != count) { \
@@ -410,7 +435,13 @@ static int ftec_client_ll_raw_request(struct hid_device *hdev,
 	} \
 	params = (__type*)buf;
 
+#define	get_effect \
+	struct ff_effect *effect; \
+	if (!(effect = get_effect(drv_data, params->id, reportnum)))  \
+	    return 0; \
+
 	switch (reportnum) {
+#ifdef DEVICE_MANAGED
 	case PID_REPORT_CREATE_NEW_EFFECT: {
 		map_pid_type(struct create_new_effect);
 		size_t type_idx = params->type_idx - 1;
@@ -441,37 +472,66 @@ static int ftec_client_ll_raw_request(struct hid_device *hdev,
 		params->ram_pool_avail = 0xffff;
 		break;
 	}
-	case PID_REPORT_SET_CONSTANT_FORCE: {
-		map_pid_type(struct set_constant);
+	case PID_REPORT_BLOCK_FREE: {
+		map_pid_type(struct block_free);
 		if (!(effect = get_effect(drv_data, params->id, reportnum)))
 			return 0;
+		(void)ff->playback(inputdev, effect->id, 0);
+		memset(effect, 0, sizeof(struct ff_effect));
+		break;
+	}
+#endif
+	case PID_REPORT_SET_CONSTANT_FORCE: {
+		map_pid_type(struct set_constant);
+		get_effect	
 		effect->u.constant.level = params->level;
 		if (effect->id)
 			(void)ff->upload(inputdev, effect, NULL);
 		break;
 	}
 	case PID_REPORT_SET_ENVELOPE: {
-		return 0;
+		struct ff_envelope *envelope;
+		map_pid_type(struct set_envelope);
+		get_effect	
+		switch (effect->type) {
+			case FF_CONSTANT:
+				envelope = &effect->u.constant.envelope;
+				break;
+			case FF_RAMP:
+				envelope = &effect->u.ramp.envelope;
+				break;
+			case FF_PERIODIC:
+				envelope = &effect->u.periodic.envelope;
+				break;
+			default:
+				hid_err(hdev, "invalid effect type for envelope: %u", effect->type);
+				return 0;
+		}
+		envelope->fade_level = params->fade_level;
+		envelope->fade_length = params->fade_time;
+		envelope->attack_level = params->attack_level;
+		envelope->attack_length = params->attack_time;
+		if (effect->id)
+			(void)ff->upload(inputdev, effect, NULL);
+		break;
 	}
 	case PID_REPORT_SET_CONDITION: {
 		map_pid_type(struct set_condition);
-		if (!(effect = get_effect(drv_data, params->id, reportnum)))
-			return 0;
-		struct ff_condition_effect *condition = &effect->u.condition[params->dir_enable&0x1];
-		condition->center = params->center;
-		condition->right_coeff = params->right_coeff;
-		condition->left_coeff = params->left_coeff;
-		condition->right_saturation = params->right_saturation;
-		condition->left_saturation = params->left_saturation;
-		condition->deadband = params->deadband;
+		get_effect
+		struct ff_condition_effect *condition = &effect->u.condition[params->block_offset&0x1];
+		condition->center = params->offset;
+		condition->right_coeff = params->positive_coeff;
+		condition->left_coeff = params->negative_coeff;
+		condition->right_saturation = params->positive_saturation;
+		condition->left_saturation = params->negative_saturation;
+		condition->deadband = params->dead_band;
 		if (effect->id)
 			(void)ff->upload(inputdev, effect, NULL);
 		break;
 	}
 	case PID_REPORT_SET_PERIODIC: {
 		map_pid_type(struct set_periodic);
-		if (!(effect = get_effect(drv_data, params->id, reportnum)))
-			return 0;
+		get_effect	
 		effect->u.periodic.period = params->period;
 		// FIXME: what's this all about ??
 		if (effect->u.periodic.period != 0) {
@@ -486,21 +546,33 @@ static int ftec_client_ll_raw_request(struct hid_device *hdev,
 			(void)ff->upload(inputdev, effect, NULL);
 		break;
 	}
+	case PID_REPORT_DEVICE_GAIN: {
+		hid_dbg(hdev, "gain not implemented");
+		break;
+	}
 	case PID_REPORT_SET_EFFECT: {
 		map_pid_type(struct set_effect);
-		if (!(effect = get_effect(drv_data, params->id, reportnum)))
-			return 0;
-		effect->replay.length = params->length == 0xffff ? 0 : params->length;
-		effect->replay.delay = params->delay;
-		effect->trigger.interval = params->interval;
+		get_effect	
+		if (!effect->type) {
+			size_t type_idx = params->type_idx - 1;
+			if (ff_effects[type_idx] == FF_SINE) {
+				effect->type = FF_PERIODIC;
+				effect->u.periodic.waveform = ff_effects[type_idx];
+			} else {
+				effect->type = ff_effects[type_idx];
+			}
+		}
+		effect->replay.length = params->duration == 0xffff ? 0 : params->duration;
+		effect->replay.delay = params->start_delay;
+		effect->trigger.interval = params->trigger_repeat_interval;
 		// buf[9]: gain
 		effect->trigger.button = params->button;
 
 		// FIXME: default effect direction
 		effect->direction = 0x4000;
 		// Note: needs to be aligned to Usage 0x55/0x56
-		if (params->enable & 0x1 && params->enable >> 4 & 0x1) {
-			effect->direction = params->direction * 0x10000 / 36000;
+		if (params->enable & 0x1) {
+			effect->direction = params->direction[0] * 0x10000 / 36000;
 		}
 		if (effect->id)
 			(void)ff->upload(inputdev, effect, NULL);
@@ -508,8 +580,7 @@ static int ftec_client_ll_raw_request(struct hid_device *hdev,
 	}
 	case PID_REPORT_EFFECT_OPERATION: {
 		map_pid_type(struct effect_operation);
-		if (!(effect = get_effect(drv_data, params->id, reportnum)))
-			return 0;
+		get_effect
 
 		if (effect->type == 0) {
 			hid_err(hdev, "Invalid type %u\n", effect->type);
@@ -519,6 +590,7 @@ static int ftec_client_ll_raw_request(struct hid_device *hdev,
 		// Effect Operation: Op Effect Start/Start Solo/Stop
 		if (params->op == 0x3 || params->count == 0) {
 			(void)ff->playback(inputdev, effect->id, 0);
+			ftec_client_report_state(drv_data->client.hdev, 0x2, 0x0, effect->id);
 			effect->id = 0;
 			break;
 		} else {
@@ -529,6 +601,7 @@ static int ftec_client_ll_raw_request(struct hid_device *hdev,
 					other_effect = &drv_data->client.effects[i];
 					if (other_effect->id > 0 && other_effect != effect) {
 						(void)ff->playback(inputdev, other_effect->id, 0);
+						ftec_client_report_state(drv_data->client.hdev, 0x2, 0x0, other_effect->id);
 						other_effect->id = 0;
 					}
 				}
@@ -538,6 +611,7 @@ static int ftec_client_ll_raw_request(struct hid_device *hdev,
 				if (!effect->id) {
 					effect->id = params->id;
 					(void)ff->upload(inputdev, effect, NULL);
+					ftec_client_report_state(drv_data->client.hdev, 0x2, 0x4, effect->id);
 				}
 			}
 		}
@@ -552,6 +626,7 @@ static int ftec_client_ll_raw_request(struct hid_device *hdev,
 			for (size_t i = 0; i < ARRAY_SIZE(drv_data->client.effects); ++i) {
 				if (drv_data->client.effects[i].id) {
 					(void)ff->playback(inputdev, drv_data->client.effects[i].id, 0);
+					ftec_client_report_state(drv_data->client.hdev, 0x2, 0x0, drv_data->client.effects[i].id);
 					memset(&drv_data->client.effects[i], 0, sizeof(struct ff_effect));
 				}
 			}
@@ -559,16 +634,8 @@ static int ftec_client_ll_raw_request(struct hid_device *hdev,
 		}
 		break;
 	}
-	case PID_REPORT_BLOCK_FREE: {
-		map_pid_type(struct block_free);
-		if (!(effect = get_effect(drv_data, params->id, reportnum)))
-			return 0;
-		(void)ff->playback(inputdev, effect->id, 0);
-		memset(effect, 0, sizeof(struct ff_effect));
-		break;
-	}
 	default:
-		 printk("Not implemented report %u\n", reportnum);
+		 hid_err(hdev, "Not implemented report %u\n", reportnum);
 	}
 	return count;
 }
@@ -606,6 +673,7 @@ static struct hid_device *ftec_create_client_hid(struct hid_device *hdev)
 	 * Since we use the same device info than the real interface to
 	 * trick userspace, we will be calling ftec_probe recursively.
 	 * We need to recognize the client interface somehow.
+	 * Note: this technique is 'stolen' from hid-steam
 	 */
 	client_hdev->group = HID_GROUP_STEAM;
 	return client_hdev;

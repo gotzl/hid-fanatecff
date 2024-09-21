@@ -6,26 +6,16 @@
 0x85, 0x10,                     /*          Report ID (16),                 */
 0x09, 0x9F,                     /*          Usage (9Fh),                    */
 0x09, 0xA0,                     /*          Usage (A0h),                    */
-0x09, 0xA4,                     /*          Usage (A4h),                    */
-0x09, 0xA5,                     /*          Usage (A5h),                    */
-0x09, 0xA6,                     /*          Usage (A6h),                    */
-0x15, 0x00,                     /*          Logical Minimum (0),            */
-0x25, 0x01,                     /*          Logical Maximum (1),            */
-0x75, 0x01,                     /*          Report Size (1),                */
-0x95, 0x05,                     /*          Report Count (5),               */
-0x81, 0x02,                     /*          Input (Variable),               */
-0x95, 0x03,                     /*          Report Count (3),               */
-0x81, 0x03,                     /*          Input (Constant, Variable),     */
 0x09, 0x94,                     /*          Usage (94h),                    */
 0x15, 0x00,                     /*          Logical Minimum (0),            */
 0x25, 0x01,                     /*          Logical Maximum (1),            */
 0x75, 0x01,                     /*          Report Size (1),                */
-0x95, 0x01,                     /*          Report Count (1),               */
+0x95, 0x08,                     /*          Report Count (8),               */
 0x81, 0x02,                     /*          Input (Variable),               */
 0x09, 0x22,                     /*          Usage (22h),                    */
 0x15, 0x01,                     /*          Logical Minimum (1),            */
 0x25, 0x28,                     /*          Logical Maximum (40),           */
-0x75, 0x07,                     /*          Report Size (7),                */
+0x75, 0x07,                     /*          Report Size (8),                */
 0x95, 0x01,                     /*          Report Count (1),               */
 0x81, 0x02,                     /*          Input (Variable),               */
 0xC0,                           /*      End Collection,                     */
@@ -59,14 +49,15 @@
 0x91, 0x00,                     /*              Output,                     */
 0xC0,                           /*          End Collection,                 */
 0x09, 0x50,                     /*          Usage (50h),                    */
-0x09, 0xA7,                     /*          Usage (A7h),                    */
 0x09, 0x54,                     /*          Usage (54h),                    */
+0x09, 0x51,                     /*          Usage (51h),                    */
+0x09, 0xA7,                     /*          Usage (A7h),                    */
 0x15, 0x00,                     /*          Logical Minimum (0),            */
 0x26, 0xFF, 0x7F,               /*          Logical Maximum (32767),        */
 0x66, 0x03, 0x10,               /*          Unit (Seconds),                 */
 0x55, 0xFD,                     /*          Unit Exponent (-3),             */
 0x75, 0x10,                     /*          Report Size (16),               */
-0x95, 0x03,                     /*          Report Count (3),               */
+0x95, 0x04,                     /*          Report Count (4),               */
 0x91, 0x02,                     /*          Output (Variable),              */
 0x55, 0x00,                     /*          Unit Exponent (0),              */
 0x66, 0x00, 0x00,               /*          Unit,                           */
@@ -84,25 +75,20 @@
 0x91, 0x02,                     /*          Output (Variable),              */
 0x09, 0x55,                     /*          Usage (55h),                    */
 0xA1, 0x02,                     /*          Collection (Logical),           */
-0x05, 0x01,                     /*              Usage Page (Desktop),       */
-0x09, 0x30,                     /*              Usage (X),                  */
-0x09, 0x31,                     /*              Usage (Y),                  */
+0x0b, 0x30, 0x00, 0x01, 0x00,   /*              Usage (X),                  */
+0x0b, 0x31, 0x00, 0x01, 0x00,   /*              Usage (Y),                  */
 // 0x09, 0x32,                     /*              Usage (Z),                  */
 0x15, 0x00,                     /*              Logical Minimum (0),        */
 0x25, 0x01,                     /*              Logical Maximum (1),        */
 0x75, 0x01,                     /*              Report Size (1),            */
 0x95, 0x02,                     /*              Report Count (2),           */
 0x91, 0x02,                     /*              Output (Variable),          */
-0x75, 0x02,                     /*              Report Size (2),            */
-0x95, 0x01,                     /*              Report Count (1),           */
-0x91, 0x03,                     /*              Output (Constant, Viriable),*/
 0xC0,                           /*          End Collection,                 */
-0x05, 0x0F,                     /*          Usage Page (PID),               */
 0x09, 0x56,                     /*          Usage (56h),                    */
 0x75, 0x01,                     /*          Report Size (1),                */
 0x95, 0x01,                     /*          Report Count (1),               */
 0x91, 0x02,                     /*          Output (Variable),              */
-0x75, 0x03,                     /*          Report Size (3),                */
+0x75, 0x05,                     /*          Report Size (5),                */
 0x95, 0x01,                     /*          Report Count (1),               */
 0x91, 0x03,                     /*          Output (Constant, Variable),    */
 0x09, 0x57,                     /*          Usage (57h),                    */
@@ -162,10 +148,7 @@
 0x09, 0x23,                     /*          Usage (23h),                    */
 0x15, 0x00,                     /*          Logical Minimum (0),            */
 0x25, 0x01,                     /*          Logical Maximum (1),            */
-0x75, 0x04,                     /*          Report Size (4),                */
-0x95, 0x01,                     /*          Report Count (1),               */
-0x91, 0x02,                     /*          Output (Variable),              */
-0x75, 0x04,                     /*          Report Size (4),                */
+0x75, 0x08,                     /*          Report Size (8),                */
 0x95, 0x01,                     /*          Report Count (1),               */
 0x91, 0x02,                     /*          Output (Variable),              */
 0x09, 0x60,                     /*          Usage (60h),                    */
@@ -242,8 +225,6 @@
 0x09, 0x22,                     /*          Usage (22h),                    */
 0x15, 0x01,                     /*          Logical Minimum (1),            */
 0x25, 0x28,                     /*          Logical Maximum (40),           */
-0x35, 0x01,                     /*          Physical Minimum (1),           */
-0x45, 0x28,                     /*          Physical Maximum (40),          */
 0x75, 0x08,                     /*          Report Size (8),                */
 0x95, 0x01,                     /*          Report Count (1),               */
 0x91, 0x02,                     /*          Output (Variable),              */
@@ -290,6 +271,7 @@
 0x91, 0x02,                     /*          Output (Variable),              */
 0x45, 0x00,                     /*          Physical Maximum (0),           */
 0xC0,                           /*      End Collection,                     */
+#ifdef BLOCK_FREE_REPORT
 0x09, 0x90,                     /*      Usage (90h),                        */
 0xA1, 0x02,                     /*      Collection (Logical),               */
 0x85, 0x1B,                     /*          Report ID (27),                 */
@@ -300,9 +282,10 @@
 0x95, 0x01,                     /*          Report Count (1),               */
 0x91, 0x02,                     /*          Output (Variable),              */
 0xC0,                           /*      End Collection,                     */
+#endif
 0x09, 0x96,                     /*      Usage (96h),                        */
 0xA1, 0x02,                     /*      Collection (Logical),               */
-0x85, 0x1C,                     /*          Report ID (28),                 */
+0x85, 0x10,                     /*          Report ID (16),                 */
 0x09, 0x97,                     /*          Usage (97h),                    */
 0x09, 0x98,                     /*          Usage (98h),                    */
 0x09, 0x99,                     /*          Usage (99h),                    */
@@ -315,6 +298,7 @@
 0x95, 0x01,                     /*          Report Count (1),               */
 0x91, 0x00,                     /*          Output,                         */
 0xC0,                           /*      End Collection,                     */
+#ifdef CREATE_NEW_EFFECT_REPORT
 0x09, 0xAB,                     /*      Usage (ABh),                        */
 0xA1, 0x02,                     /*      Collection (Logical),               */
 0x85, 0x14,                     /*          Report ID (20),                 */
@@ -350,6 +334,8 @@
 0xB1, 0x01,                     /*          Feature (Constant),             */
 0x45, 0x00,                     /*          Physical Maximum (0),           */
 0xC0,                           /*      End Collection,                     */
+#endif
+#ifdef BLOCK_LOAD_REPORT
 0x05, 0x0F,                     /*      Usage Page (PID),                   */
 0x09, 0x89,                     /*      Usage (89h),                        */
 0xA1, 0x02,                     /*      Collection (Logical),               */
@@ -385,6 +371,8 @@
 0xB1, 0x00,                     /*          Feature,                        */
 0x45, 0x00,                     /*          Physical Maximum (0),           */
 0xC0,                           /*      End Collection,                     */
+#endif
+#ifdef DEVICE_POOL_REPORT
 0x09, 0x7F,                     /*      Usage (7Fh),                        */
 0xA1, 0x02,                     /*      Collection (Logical),               */
 0x85, 0x17,                     /*          Report ID (23),                 */
@@ -410,6 +398,7 @@
 0x95, 0x01,                     /*          Report Count (1),               */
 0xB1, 0x03,                     /*          Feature (Constant, Variable),   */
 0xC0,                           /*      End Collection,                     */
+#endif
 0x09, 0x7D,                     /*      Usage (7Dh),                        */
 0xA1, 0x02,                     /*      Collection (Logical),               */
 0x85, 0x19,                     /*          Report ID (25),                 */
