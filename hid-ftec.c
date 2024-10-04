@@ -627,8 +627,8 @@ static int ftec_client_ll_raw_request(struct hid_device *hdev,
 				if (drv_data->client.effects[i].id) {
 					(void)ff->playback(inputdev, drv_data->client.effects[i].id, 0);
 					ftec_client_report_state(drv_data->client.hdev, 0x2, 0x0, drv_data->client.effects[i].id);
-					memset(&drv_data->client.effects[i], 0, sizeof(struct ff_effect));
 				}
+				memset(&drv_data->client.effects[i], 0, sizeof(struct ff_effect));
 			}
 			drv_data->client.current_id = 0;
 		}
