@@ -207,15 +207,16 @@ const u8 rdesc_pid_ffb[] = {
 #include "hid-ftec-pid.h"
 };
 
-static int ftec_client_rdesc_fixup(struct ftec_drv_data_client *client, u8 *dev_rdesc, size_t dev_rsize)
+static int ftec_client_rdesc_fixup(struct ftec_drv_data_client *client, const u8 *dev_rdesc, size_t dev_rsize)
 {
-	u8 *rdesc = client->rdesc, *ref_pos, *ref_end, *pos, *end;
+	const u8 *rdesc = client->rdesc, *ref_pos, *ref_end, *end;
+	u8 *pos;
 	unsigned depth = 0;
 	u8 size, report_id = 255;
 
 	for (ref_pos = dev_rdesc,
 			ref_end = dev_rdesc + dev_rsize,
-			pos = rdesc, end = rdesc + sizeof(client->rdesc);
+			pos = (u8*)rdesc, end = rdesc + sizeof(client->rdesc);
 			ref_pos != ref_end && pos != end;
 			ref_pos += size + 1, pos += size + 1) {
 
@@ -745,8 +746,8 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 		goto err_stop;
 	}
 
-	if (drv_data->quirks & FTEC_TUNING_MENU) {
-		/* Open the device to receive reports with tuning menu data */
+	if (drv_data->quirks & FTEC_TUNING_MENU || hidraw_pid) {
+		/* Open the device to receive reports with tuning menu data and device state */
 		ret = hid_hw_open(hdev);
 		if (ret < 0) {
 			hid_err(hdev, "hw open failed\n");
@@ -847,8 +848,8 @@ static void ftec_remove(struct hid_device *hdev)
 
 static int ftec_raw_event(struct hid_device *hdev, struct hid_report *report, u8 *data, int size) {
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hdev);
+	// printk("ftec_raw_event %#02x %i; client opened: %i\n", report->id, size, drv_data->client.opened);
 	if (drv_data->client.opened) {
-		// printk("ftec_raw_event %#02x %i\n", report->id, size);
 		hidraw_report_event(drv_data->client.hdev, data, size);
 	}
 	if (drv_data->quirks & FTEC_FF) {
