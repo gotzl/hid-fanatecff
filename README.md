@@ -133,6 +133,15 @@ To access advanced functions from user space please see the [hid-fanatecff-tools
 * Packaging for more distros
 
 ## Troubleshooting
+### No FFB, nothing on LEDs/display
+Check permissions `ls -l /dev/hidrawXX`, if it is not `0666`, then check with `udevadm test /dev/hidrawXX` if there are any additional rules overwriting the mode set by the `fanatec.rules` file.
+Check correct driver module version is loaded: `modinfo hid-fanatec | grep hidraw`
+Check game log `PROTON_LOG=+hid,+input,+dinput %command%`, ensure that there is a line called `found 3 TLCs`. If it is not there, then a proton/wine version is used that doesn't support multi TLCs (yet).
+
+### Game hangs at startup
+* Clear enumerated HID devices: `protontricks -c "wine reg delete 'HKLM\System\CurrentControlSet\Enum\HID' /f" <appid>`
+* If using separated pedals, 'pump' a pedal (to generate input) during game startup (seen in F1 23, AMS2, ??)
+
 ### Large deadzone or chunky input
 Check the deadzone/flatness/fuzz settings:
 ```
