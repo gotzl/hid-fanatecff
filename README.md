@@ -59,7 +59,7 @@ If you don't want to compile and install manually, following is a list of known 
 Support for a bunch of effects, mostly copy-pasted from [new-lg4ff](https://github.com/berarma/new-lg4ff).  
 Currently, FF_FRICTION and FF_INERTIA effects have experimental support in this driver.
 
-**Note:** With Proton 7/8, in some games the wheel is not detected properly when starting it for the first time (ie, when a new Proton-prefix is created). The current workaround is to first start the game with Proton 6, and then switch to a later one. (See also #67)
+**Note:** With Proton 7/8/9, in some games the wheel is not detected properly when starting it for the first time (ie, when a new Proton-prefix is created). The current workaround is to first start the game with Proton 6, and then switch to a later one. (See also #67)
 
 ### FFB in specific Games
 
@@ -131,6 +131,30 @@ To access advanced functions from user space please see the [hid-fanatecff-tools
 * Support more devices / advances functions of devices
 * Support different wheels-rims and their quirks
 * Packaging for more distros
+
+## Troubleshooting
+### Large deadzone or chunky input
+Check the deadzone/flatness/fuzz settings:
+```
+evdev-joystick -s /dev/input/by-id/usb-Fanatec*-event-joystick
+```
+This should output s.t. like `... flatness: 0 (=0.00%), fuzz: 0)` for all axis.
+If this is not the case then check that the udev rule works. Execute
+```
+udevadm test /dev/input/by-id/usb-Fanatec*-event-joystick
+```
+and see if `/etc/udev/rules.d/99-fanatec.rules` gets called.
+
+### Dirt Rally 2: no FFB with CSL DD / ClubSport DD
+Edit `input/devices/device_defines.xml` and add a line like this
+```
+<device id="{00200EB7-0000-0000-0000-504944564944}" name="ftec_csl_dd_pc" priority="100" type="wheel" />
+```
+Adjust the `00200EB7` to your PID (first 4 chars).
+
+### ACC: wrong controller mapping (ie pedals show up as wheel input and vice-versa)
+Try to delete `My Documents/Assetto Corsa Competizione/Config/controls.json`   
+Note: You'll probably have to re-map all your Buttons!
 
 ## Contact
 
