@@ -54,12 +54,31 @@ If you don't want to compile and install manually, following is a list of known 
 
 ## Status
 
-### General
+### Implementation  
 
-Support for a bunch of effects, mostly copy-pasted from [new-lg4ff](https://github.com/berarma/new-lg4ff).  
+#### Integration with Linux Kernel Subsystems  
+
+This driver implements a [Linux force-feedback (FF) driver](https://www.kernel.org/doc/html/latest/input/ff.html), allowing force-feedback effects to be uploaded via the standard API. These effects are translated into a custom HID protocol and sent to the device asynchronously, using a timer that defaults to 2ms.  
+
+Supported are a bunch of effects, the code is largely copy-pasted/adapted from [new-lg4ff](https://github.com/berarma/new-lg4ff).  
 Currently, FF_FRICTION and FF_INERTIA effects have experimental support in this driver.
 
-**Note:** With Proton 7/8/9, in some games the wheel is not detected properly when starting it for the first time (ie, when a new Proton-prefix is created). The current workaround is to first start the game with Proton 6, and then switch to a later one. (See also #67)
+Additionally, the driver integrates with the [Linux LED interface](https://www.kernel.org/doc/html/latest/leds/leds-class.html), enabling control of the RPM and other LEDs found on most Fanatec wheel rims. This is achieved by writing to the appropriate `sysfs` files. Further details on these and other `sysfs` files exposed by the driver can be found in the [Device-Specific Section](#device-specific).  
+
+#### Integration with Wine/Proton  
+
+Wine/Proton provides multiple methods for accessing HID devices. Typically, it interfaces with the Linux input subsystem either directly or through SDL, using this information to create a corresponding Windows input device. While this allows games to utilize HID and force-feedback functionality, it does not support LEDs or other advanced features.  
+
+Notably, the Fanatec SDK—used by certain games—often encounters issues when interacting with the Windows input device created in this manner.  
+
+As an alternative, Wine/Proton can use [HIDRAW](https://docs.kernel.org/hid/hidraw.html) to create Windows input devices directly from a device’s HID descriptor. This approach allows Wine/Proton to communicate with the device as if running in a native Windows environment, enabling proper interaction with the Fanatec SDK for LED and display control.  
+
+For force feedback to function correctly in Wine/Proton using HIDRAW, the HID descriptor must expose [HID PID](https://www.usb.org/document-library/device-class-definition-pid-10-0) functionality. To achieve this, the driver extends the device's HID descriptor with the necessary HID PID components and exposes them through the HIDRAW interface. HID PID commands from Wine/Proton are intercepted, translated into the custom HID protocol, and sent to the device. All other communication is directly passed through.  
+
+By default, HIDRAW is not enabled in Wine. To enable it, see the [EnableHidraw registry key](https://gitlab.winehq.org/wine/wine/-/wikis/Useful-Registry-Keys).  
+
+The Proton wine fork maintains a hardcoded list of devices for which HIDRAW is enabled. Beginning with Proton ?, HIDRAW will be enabled for Fanatec wheel bases. Prior versions of Proton will fall back to the Linux input/SDL method.  
+
 
 ### FFB in specific Games
 
