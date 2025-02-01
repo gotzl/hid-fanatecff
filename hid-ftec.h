@@ -110,7 +110,7 @@ struct ftec_drv_data {
 	u16 range;
 	u16 max_range;
 	u16 min_range;
-#ifdef CONFIG_LEDS_CLASS
+#if IS_REACHABLE(CONFIG_LEDS_CLASS)
 	u16 led_state;
 	struct led_classdev *led[LEDS];
 #endif    

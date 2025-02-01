@@ -364,7 +364,7 @@ static ssize_t ftec_set_display(struct device *dev, struct device_attribute *att
 }
 static DEVICE_ATTR(display, S_IWUSR | S_IWGRP, NULL, ftec_set_display);
 
-#ifdef CONFIG_LEDS_CLASS
+#if IS_REACHABLE(CONFIG_LEDS_CLASS)
 static void ftec_set_leds(struct hid_device *hid, u16 leds)
 {
 	struct ftec_drv_data *drv_data;
@@ -469,7 +469,7 @@ static enum led_brightness ftec_led_get_brightness(struct led_classdev *led_cdev
 }
 #endif
 
-#ifdef CONFIG_LEDS_CLASS
+#if IS_REACHABLE(CONFIG_LEDS_CLASS)
 static int ftec_init_led(struct hid_device *hid) {
 	struct led_classdev *led;
 	size_t name_sz;
@@ -1126,7 +1126,7 @@ int ftecff_init(struct hid_device *hdev) {
 		ftec_tuning_classdev_register(&hdev->dev, &drv_data->tuning);
 	}
 
-#ifdef CONFIG_LEDS_CLASS
+#if IS_REACHABLE(CONFIG_LEDS_CLASS)
 	if (ftec_init_led(hdev))
 		hid_err(hdev, "LED init failed\n"); /* Let the driver continue without LEDs */
 #endif
@@ -1161,7 +1161,7 @@ void ftecff_remove(struct hid_device *hdev)
 		ftec_tuning_classdev_unregister(&drv_data->tuning);
 	}
 
-#ifdef CONFIG_LEDS_CLASS
+#if IS_REACHABLE(CONFIG_LEDS_CLASS)
 	{
 		int j;
 		struct led_classdev *led;
