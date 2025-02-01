@@ -87,6 +87,15 @@ struct ftec_tuning_classdev {
 	u8 advanced_mode;
 };
 
+struct ftec_drv_data_client {
+	struct hid_device *hdev;
+	u8 rdesc[4096];
+	size_t rsize;
+	int opened;
+	struct ff_effect effects[40];
+	u8 current_id;
+};
+
 struct ftec_drv_data {
 	unsigned long quirks;
 	spinlock_t report_lock; /* Protect output HID report */
@@ -94,6 +103,7 @@ struct ftec_drv_data {
 	struct hrtimer hrtimer;
 	struct hid_device *hid;
 	struct hid_report *report;
+	struct ftec_drv_data_client client;
 	struct ftecff_slot slots[5];
 	struct ftecff_effect_state states[FTECFF_MAX_EFFECTS];
 	int effects_used;	

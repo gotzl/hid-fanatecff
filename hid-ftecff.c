@@ -665,8 +665,8 @@ static void ftecff_update_slot(struct ftecff_slot *slot, struct ftecff_effect_pa
 #define CLAMP_VALUE_U16(x) ((unsigned short)((x) > 0xffff ? 0xffff : (x)))
 #define CLAMP_VALUE_S16(x) ((unsigned short)((x) <= -0x8000 ? -0x8000 : ((x) > 0x7fff ? 0x7fff : (x))))
 #define TRANSLATE_FORCE(x, bits) ((CLAMP_VALUE_S16(x) + 0x8000) >> (16 - bits))
-#define SCALE_COEFF(x, bits) SCALE_VALUE_U16(abs(x) * 2, bits)
 #define SCALE_VALUE_U16(x, bits) (CLAMP_VALUE_U16(x) >> (16 - bits))
+#define SCALE_COEFF(x, bits) SCALE_VALUE_U16(abs(x) * 2, bits)
 
 	switch (slot->effect_type) {
 		case FF_CONSTANT:
@@ -969,12 +969,23 @@ static int ftecff_upload_effect(struct input_dev *dev, struct ff_effect *effect,
 	struct ftecff_effect_state *state;
 	unsigned long now = JIFFIES2MS(jiffies);
 	unsigned long flags;
+	
+	state = &drv_data->states[effect->id];
+
+	if (0) {
+		struct ff_condition_effect *condition = &effect->u.condition[0];
+		printk("id %u, state %lu, delay %u, interval %u, type %#02x, effect direction %#04x", effect->id, state->flags, effect->replay.delay, effect->trigger.interval, effect->type, effect->direction);
+		if (effect->type == FF_PERIODIC) {
+			printk(KERN_CONT ", magnitude %i, offset %i, phase %#02x, period %u\n", effect->u.periodic.magnitude, effect->u.periodic.offset, effect->u.periodic.phase, effect->u.periodic.period);
+		} else {
+			printk(KERN_CONT ", level %i, left_coeff %i, right_coeff %i, left_saturation %i, right_saturation %i\n", effect->u.constant.level, condition->left_coeff, condition->right_coeff, condition->left_saturation, condition->right_saturation);
+		}
+		// return 0;
+	}
 
 	if (effect->type == FF_PERIODIC && effect->u.periodic.period == 0) {
 		return -EINVAL;
 	}
-
-	state = &drv_data->states[effect->id];
 
 	if (test_bit(FF_EFFECT_STARTED, &state->flags) && effect->type != state->effect.type) {
 		return -EINVAL;

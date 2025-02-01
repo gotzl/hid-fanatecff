@@ -52,47 +52,73 @@ If you don't want to compile and install manually, following is a list of known 
 | ------ | ------- |
 | AUR | [`hid-fanatecff-dkms`](https://aur.archlinux.org/packages/hid-fanatecff-dkms) |
 
-## Status
 
-### General
+## Implementation  
 
-Support for a bunch of effects, mostly copy-pasted from [new-lg4ff](https://github.com/berarma/new-lg4ff).  
+### Integration with Linux Kernel Subsystems  
+
+This driver implements a [Linux force-feedback (FF) driver](https://www.kernel.org/doc/html/latest/input/ff.html), allowing force-feedback effects to be uploaded via the standard Linux libinput API. These effects are translated into a custom HID protocol and sent to the device asynchronously, using a timer that defaults to 2ms.  
+
+Supported are a bunch of effects, the code is largely copy-pasted/adapted from [new-lg4ff](https://github.com/berarma/new-lg4ff).  
 Currently, FF_FRICTION and FF_INERTIA effects have experimental support in this driver.
 
-**Note:** With Proton 7/8/9, in some games the wheel is not detected properly when starting it for the first time (ie, when a new Proton-prefix is created). The current workaround is to first start the game with Proton 6, and then switch to a later one. (See also #67)
+Additionally, the driver integrates with the [Linux LED interface](https://www.kernel.org/doc/html/latest/leds/leds-class.html), enabling control of the RPM and other LEDs found on most Fanatec wheel rims. This is achieved by writing to the appropriate `sysfs` files. Further details on these and other `sysfs` files exposed by the driver can be found in the [Device-Specific Section](#device-specific).  
 
-### FFB in specific Games
+### Integration with Wine/Proton  
+
+Wine/Proton provides multiple methods for accessing HID devices. Typically, it interfaces with the Linux libinput subsystem either directly or through SDL, using this information to create a corresponding Windows input device. While this allows games to utilize HID and force-feedback functionality, it does not support LEDs or other advanced features.  
+
+Notably, the Fanatec SDK—used by certain games—often encounters issues when interacting with the Windows input device created in this manner.  
+
+As an alternative, Wine/Proton can use [HIDRAW](https://docs.kernel.org/hid/hidraw.html) to create Windows input devices directly from a device’s HID descriptor. This approach allows Wine/Proton to communicate with the device as if running in a native Windows environment, enabling proper interaction with the Fanatec SDK for LED and display control.  
+
+For force feedback to function correctly in Wine/Proton using HIDRAW, the HID descriptor must expose [HID PID](https://www.usb.org/document-library/device-class-definition-pid-10-0) functionality. To achieve this, the driver extends the device's HID descriptor with the necessary HID PID components and exposes them through the HIDRAW interface. HID PID commands from Wine/Proton are intercepted, translated into the custom HID protocol, and sent to the device. All other communication is directly passed through.  
+
+#### Switching between libinput/SDL and HIDRAW
+
+By default, HIDRAW is not enabled in wine. To enable it, see the [EnableHidraw registry key](https://gitlab.winehq.org/wine/wine/-/wikis/Useful-Registry-Keys).  
+
+The Proton wine fork maintains a hardcoded list of devices for which HIDRAW is enabled. Beginning with Proton ?, HIDRAW is enabled for Fanatec wheel bases by default (prior versions of Proton will fall back to the Linux libinput/SDL method). To force using libinput/SDL set `PROTON_ENABLE_HIDRAW=0 %command%` as launch-option.
+
+
+## List of compatible games
 
 Games that are expected to work (tested by me and others more or less regularly):
 
-* AC / ACC (*)
-* Automobilista 2
-* DiRT 4
-* DiRT Rally 2 / WRC (**)
-* F1 22/23 (***)
-* rFactor2
-* Rennsport
-* RRRE
-* Wreckfest
+| Game | compat-layer | libinput-FFB | hidraw-FFB | hidraw-FanatecSDK | Notes |
+| ---- | ------------ | ----------   | ---------- | ----------------- | ----- |
+| AC   | proton       |  yes         |  yes       |     no            |       |
+| ACC  | proton       |  yes(*)      |  yes       |     yes           |       |
+| ACE  | proton       |  no, crash on startup | yes | yes | |
+| Automobilista 2 | proton | no, crash on startup | yes | no | includes FanatecSDK but doesn't drive LEDs/display |
+| BeamNG.drive    | native | yes | - | - | |
+| BeamNG.drive    | proton | yes | yes | no |  |
+| DiRT 4          | proton | yes | ? | ? | |
+| DiRT Rally 2(**)| proton | no, crash on stage-load | yes | no | |
+| WRC(**)         | proton | no, crash on startup | yes | yes | can't be played anymore due to anti-cheat |
+| F1 2020/2021    | proton | yes | yes | no | FFB is weak and some effects seem to be missing, see (#22) |
+| F1 2X           | proton | no, crash on startup | yes | yes | FFB is weak and some effects seem to be missing |
+| rFactor2        | proton | yes | yes | yes | need to set negative FFB strength |
+| Rennsport       | wine/proton | no, crash on startup | yes | yes | |
+| RRRE            | proton | yes | yes | yes | |
+| Wreckfest       | protno | yes | ? | ? | |
 
-Games that don't work properly:
+The `libinput-FFB` denotes if the game/FFB works when using Windows input device derived from libinput/SDL.   
+The `hidraw-FFB` column denotes if the game/FFB works when using Windows input device derived from hidraw device.
+In case of the latter, the `hidraw-FanatecSDK` column denotes if the FanatecSDK is able to drive LEDs/display.
 
-* F1 2020/2021 (#22)
-* BeamNG.drive (Proton) (#23)
-
-
-(* input devices can get mixed-up in ACC; best have only the wheel-base connected and always use the same USB-slot)   
+(* input devices can get mixed-up; best have only the wheel-base connected and always use the same USB-slot)   
 (** uses experimental FF_FRICTION effect)   
 (*** unsure if all effects are present)   
 
-### Device specific
+## Device specific
 
 Advanced functions of wheels/bases are available via sysfs. Generally, these files should be writable by users in the `games` group. Base sysfs path:
 
 `/sys/module/hid_fanatec/drivers/hid:fanatec/0003:0EB7:<PID>.*/`
 
 
-#### Common
+### Common
 
 * Set/get range: echo number in degrees to `range`
 * Get id of mounted wheel: `wheel_id`
@@ -102,20 +128,20 @@ Advanced functions of wheels/bases are available via sysfs. Generally, these fil
   * Values get/set: `BLI DPR DRI FEI FF FOR SEN SHO SPR ...` (files depend on wheel-base)
   * Reset all tuning sets by echoing anything into `RESET`
 
-#### CSL Elite Base
+### CSL Elite Base
 
 * RPM LEDs: `leds/0003:0EB7:0005.*::RPMx/brightness` (x from 1 to 9)
 
-#### ClubSport Forumla1 wheel
+### ClubSport Forumla1 wheel
 
 * RPM LEDs (combined with base)
 * Display: `display` (negative value turns display off)
 
-#### CSL Elite pedals
+### CSL Elite pedals
 
 * Loadcell adjustment: `load` (no readback yet)
 
-#### ClubSport Pedals V3
+### ClubSport Pedals V3
 
 * pedal vibration: `rumble`
   * 0xFFFF00 -> both pedals should rumble
@@ -124,6 +150,7 @@ Advanced functions of wheels/bases are available via sysfs. Generally, these fil
   * 0 -> stop rumble
 
 To access advanced functions from user space please see the [hid-fanatecff-tools](https://github.com/gotzl/hid-fanatecff-tools) project which also aims to support LED/Display access from games.
+Note that some games natively support LEDs/display by using the FanatecSDK and HIDRAW, see the [compatible games list](#list-of-compatible-games).
 
 ## Planned
 
@@ -133,6 +160,15 @@ To access advanced functions from user space please see the [hid-fanatecff-tools
 * Packaging for more distros
 
 ## Troubleshooting
+### No FFB, nothing on LEDs/display
+Check permissions `ls -l /dev/hidrawXX`, if it is not `0666`, then check with `udevadm test /dev/hidrawXX` if there are any additional rules overwriting the mode set by the `fanatec.rules` file.
+Check correct driver module version is loaded: `modinfo hid-fanatec | grep hidraw`.
+Check game log `PROTON_LOG=1 WINEDEBUG=+hid,+input,+dinput %command%`, ensure that there is a line called `found 3 TLCs`. If it is not there, then a proton/wine version is used that doesn't support multi TLCs (yet).
+
+### Game hangs/crashes at startup
+* Clear enumerated HID devices: `protontricks -c "wine reg delete 'HKLM\System\CurrentControlSet\Enum\HID' /f" <appid>`
+* If using separated pedals, 'pump' a pedal (to generate input) during game startup (seen in F1 23, AMS2, ??)
+
 ### Large deadzone or chunky input
 Check the deadzone/flatness/fuzz settings:
 ```
