@@ -52,22 +52,21 @@ If you don't want to compile and install manually, following is a list of known 
 | ------ | ------- |
 | AUR | [`hid-fanatecff-dkms`](https://aur.archlinux.org/packages/hid-fanatecff-dkms) |
 
-## Status
 
-### Implementation  
+## Implementation  
 
-#### Integration with Linux Kernel Subsystems  
+### Integration with Linux Kernel Subsystems  
 
-This driver implements a [Linux force-feedback (FF) driver](https://www.kernel.org/doc/html/latest/input/ff.html), allowing force-feedback effects to be uploaded via the standard API. These effects are translated into a custom HID protocol and sent to the device asynchronously, using a timer that defaults to 2ms.  
+This driver implements a [Linux force-feedback (FF) driver](https://www.kernel.org/doc/html/latest/input/ff.html), allowing force-feedback effects to be uploaded via the standard Linux libinput API. These effects are translated into a custom HID protocol and sent to the device asynchronously, using a timer that defaults to 2ms.  
 
 Supported are a bunch of effects, the code is largely copy-pasted/adapted from [new-lg4ff](https://github.com/berarma/new-lg4ff).  
 Currently, FF_FRICTION and FF_INERTIA effects have experimental support in this driver.
 
 Additionally, the driver integrates with the [Linux LED interface](https://www.kernel.org/doc/html/latest/leds/leds-class.html), enabling control of the RPM and other LEDs found on most Fanatec wheel rims. This is achieved by writing to the appropriate `sysfs` files. Further details on these and other `sysfs` files exposed by the driver can be found in the [Device-Specific Section](#device-specific).  
 
-#### Integration with Wine/Proton  
+### Integration with Wine/Proton  
 
-Wine/Proton provides multiple methods for accessing HID devices. Typically, it interfaces with the Linux input subsystem either directly or through SDL, using this information to create a corresponding Windows input device. While this allows games to utilize HID and force-feedback functionality, it does not support LEDs or other advanced features.  
+Wine/Proton provides multiple methods for accessing HID devices. Typically, it interfaces with the Linux libinput subsystem either directly or through SDL, using this information to create a corresponding Windows input device. While this allows games to utilize HID and force-feedback functionality, it does not support LEDs or other advanced features.  
 
 Notably, the Fanatec SDK—used by certain games—often encounters issues when interacting with the Windows input device created in this manner.  
 
@@ -75,43 +74,51 @@ As an alternative, Wine/Proton can use [HIDRAW](https://docs.kernel.org/hid/hidr
 
 For force feedback to function correctly in Wine/Proton using HIDRAW, the HID descriptor must expose [HID PID](https://www.usb.org/document-library/device-class-definition-pid-10-0) functionality. To achieve this, the driver extends the device's HID descriptor with the necessary HID PID components and exposes them through the HIDRAW interface. HID PID commands from Wine/Proton are intercepted, translated into the custom HID protocol, and sent to the device. All other communication is directly passed through.  
 
-By default, HIDRAW is not enabled in Wine. To enable it, see the [EnableHidraw registry key](https://gitlab.winehq.org/wine/wine/-/wikis/Useful-Registry-Keys).  
+#### Switching between libinput/SDL and HIDRAW
 
-The Proton wine fork maintains a hardcoded list of devices for which HIDRAW is enabled. Beginning with Proton ?, HIDRAW will be enabled for Fanatec wheel bases. Prior versions of Proton will fall back to the Linux input/SDL method.  
+By default, HIDRAW is not enabled in wine. To enable it, see the [EnableHidraw registry key](https://gitlab.winehq.org/wine/wine/-/wikis/Useful-Registry-Keys).  
+
+The Proton wine fork maintains a hardcoded list of devices for which HIDRAW is enabled. Beginning with Proton ?, HIDRAW is enabled for Fanatec wheel bases by default (prior versions of Proton will fall back to the Linux libinput/SDL method). To force using libinput/SDL set `PROTON_ENABLE_HIDRAW=0 %command%` as launch-option.
 
 
-### FFB in specific Games
+## List of compatible games
 
 Games that are expected to work (tested by me and others more or less regularly):
 
-* AC / ACC (*) / ACE
-* Automobilista 2
-* DiRT 4
-* DiRT Rally 2 / WRC (**)
-* F1 22/23 (***)
-* rFactor2
-* Rennsport
-* RRRE
-* Wreckfest
+| Game | compat-layer | libinput-FFB | hidraw-FFB | hidraw-FanatecSDK | Notes |
+| ---- | ------------ | ----------   | ---------- | ----------------- | ----- |
+| AC   | proton       |  yes         |  yes       |     no            |       |
+| ACC  | proton       |  yes(*)      |  yes       |     yes           |       |
+| ACE  | proton       |  no, crash on startup | yes | yes | |
+| Automobilista 2 | proton | no, crash on startup | yes | no | includes FanatecSDK but doesn't drive LEDs/display |
+| BeamNG.drive    | native | yes | - | - | |
+| BeamNG.drive    | proton | yes | yes | no |  |
+| DiRT 4          | proton | yes | ? | ? | |
+| DiRT Rally 2(**)| proton | no, crash on stage-load | yes | no | |
+| WRC(**)         | proton | no, crash on startup | yes | yes | can't be played anymore due to anti-cheat |
+| F1 2020/2021    | proton | yes | yes | no | FFB is weak and some effects seem to be missing, see (#22) |
+| F1 2X           | proton | no, crash on startup | yes | yes | FFB is weak and some effects seem to be missing |
+| rFactor2        | proton | yes | yes | yes | need to set negative FFB strength |
+| Rennsport       | wine/proton | no, crash on startup | yes | yes | |
+| RRRE            | proton | yes | yes | yes | |
+| Wreckfest       | protno | yes | ? | ? | |
 
-Games that don't work properly:
+The `libinput-FFB` denotes if the game/FFB works when using Windows input device derived from libinput/SDL.   
+The `hidraw-FFB` column denotes if the game/FFB works when using Windows input device derived from hidraw device.
+In case of the latter, the `hidraw-FanatecSDK` column denotes if the FanatecSDK is able to drive LEDs/display.
 
-* F1 2020/2021 (#22)
-* BeamNG.drive (Proton) (#23)
-
-
-(* input devices can get mixed-up in ACC; best have only the wheel-base connected and always use the same USB-slot)   
+(* input devices can get mixed-up; best have only the wheel-base connected and always use the same USB-slot)   
 (** uses experimental FF_FRICTION effect)   
 (*** unsure if all effects are present)   
 
-### Device specific
+## Device specific
 
 Advanced functions of wheels/bases are available via sysfs. Generally, these files should be writable by users in the `games` group. Base sysfs path:
 
 `/sys/module/hid_fanatec/drivers/hid:fanatec/0003:0EB7:<PID>.*/`
 
 
-#### Common
+### Common
 
 * Set/get range: echo number in degrees to `range`
 * Get id of mounted wheel: `wheel_id`
@@ -121,20 +128,20 @@ Advanced functions of wheels/bases are available via sysfs. Generally, these fil
   * Values get/set: `BLI DPR DRI FEI FF FOR SEN SHO SPR ...` (files depend on wheel-base)
   * Reset all tuning sets by echoing anything into `RESET`
 
-#### CSL Elite Base
+### CSL Elite Base
 
 * RPM LEDs: `leds/0003:0EB7:0005.*::RPMx/brightness` (x from 1 to 9)
 
-#### ClubSport Forumla1 wheel
+### ClubSport Forumla1 wheel
 
 * RPM LEDs (combined with base)
 * Display: `display` (negative value turns display off)
 
-#### CSL Elite pedals
+### CSL Elite pedals
 
 * Loadcell adjustment: `load` (no readback yet)
 
-#### ClubSport Pedals V3
+### ClubSport Pedals V3
 
 * pedal vibration: `rumble`
   * 0xFFFF00 -> both pedals should rumble
@@ -143,6 +150,7 @@ Advanced functions of wheels/bases are available via sysfs. Generally, these fil
   * 0 -> stop rumble
 
 To access advanced functions from user space please see the [hid-fanatecff-tools](https://github.com/gotzl/hid-fanatecff-tools) project which also aims to support LED/Display access from games.
+Note that some games natively support LEDs/display by using the FanatecSDK and HIDRAW, see the [compatible games list](#list-of-compatible-games).
 
 ## Planned
 
