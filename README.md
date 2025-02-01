@@ -74,11 +74,13 @@ As an alternative, Wine/Proton can use [HIDRAW](https://docs.kernel.org/hid/hidr
 
 For force feedback to function correctly in Wine/Proton using HIDRAW, the HID descriptor must expose [HID PID](https://www.usb.org/document-library/device-class-definition-pid-10-0) functionality. To achieve this, the driver extends the device's HID descriptor with the necessary HID PID components and exposes them through the HIDRAW interface. HID PID commands from Wine/Proton are intercepted, translated into the custom HID protocol, and sent to the device. All other communication is directly passed through.  
 
-#### Switching between libinput/SDL and HIDRAW
+#### Enabling/Switching between libinput/SDL and HIDRAW
 
 By default, HIDRAW is not enabled in wine. To enable it, see the [EnableHidraw registry key](https://gitlab.winehq.org/wine/wine/-/wikis/Useful-Registry-Keys).  
 
-The Proton wine fork maintains a hardcoded list of devices for which HIDRAW is enabled. Beginning with Proton ?, HIDRAW is enabled for Fanatec wheel bases by default (prior versions of Proton will fall back to the Linux libinput/SDL method). To force using libinput/SDL set `PROTON_ENABLE_HIDRAW=0 %command%` as launch-option.
+The Proton wine fork maintains a hardcoded list of devices for which HIDRAW is enabled. Beginning with Proton ???, HIDRAW is enabled for Fanatec wheel bases by default (prior versions of Proton will fall back to the Linux libinput/SDL method). To force using libinput/SDL set `PROTON_ENABLE_HIDRAW=0 %command%` as launch-option.
+
+NOTE: There is no official Proton version with HIDRAW enabled yet. In the meantime you may use [my custom version of proton](https://drive.google.com/file/d/1o_Hw-eDFsGdDTBfSqADHluo_ERsCT-Za/view?usp=sharing) that includes the required patches.
 
 
 ## List of compatible games
@@ -194,7 +196,7 @@ Note: You'll probably have to re-map all your Buttons!
 
 ## Contact
 
-If you have an issue, feature request or a general question, feel free to open a ticket on GitHub.
+If you have an issue, feature request or a general question, feel free to open a ticket on GitHub or reach out on [pitcrew.gg](https://discord.pitcrew.gg/).
 
 ## Disclaimer
 
