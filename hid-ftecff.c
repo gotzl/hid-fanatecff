@@ -59,7 +59,7 @@ static const signed short ftecff_wheel_effects[] = {
 	-1
 };
 
-/* This is realy weird... if i put a value >0x80 into the report,
+/* This is really weird... if i put a value >0x80 into the report,
    the actual value send to the device will be 0x7f. I suspect it has
    s.t. todo with the report fields min/max range, which is -127 to 128
    but I don't know how to handle this properly... So, here a hack around 
