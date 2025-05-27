@@ -6,6 +6,7 @@
 #include <linux/moduleparam.h>
 #include <linux/hrtimer.h>
 #include <linux/fixp-arith.h>
+#include <linux/version.h>
 
 #include "hid-ftec.h"
 
@@ -1136,8 +1137,12 @@ int ftecff_init(struct hid_device *hdev) {
 	ftecff_init_slots(drv_data);
 	spin_lock_init(&drv_data->timer_lock);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,15,0)
 	hrtimer_init(&drv_data->hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	drv_data->hrtimer.function = ftecff_timer_hires;
+#else
+	hrtimer_setup(&drv_data->hrtimer, ftecff_timer_hires, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+#endif
 	hid_info(hdev, "Hires timer: period = %d ms", timer_msecs);
 
 	return 0;
