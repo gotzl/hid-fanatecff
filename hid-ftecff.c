@@ -15,6 +15,10 @@
 int init_range = 0;
 module_param(init_range, int, 0);
 
+// parameter to enable an LED indicating that the module is loaded
+int enable_module_init_led = 0;
+module_param(enable_module_init_led, int, 0);
+
 #define DEFAULT_TIMER_PERIOD 2
 
 #define FF_EFFECT_STARTED 0
@@ -484,7 +488,7 @@ static int ftec_init_led(struct hid_device *hid) {
 		return -1;
 	}
 
-	{ 
+	if (enable_module_init_led) {
 		// wheel LED initialization sequence
 		// not sure what's needed 
 		s32 *value;
