@@ -32,7 +32,7 @@ Arch: `pacman -S linux-headers`
 ### Compile and install the driver
 
 ```sh
-make
+make  # or `make LLVM=1` in case clang was used to compile the kernel (like in CachyOS)
 sudo make install
 ```
 
