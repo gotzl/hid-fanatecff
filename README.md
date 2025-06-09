@@ -197,7 +197,11 @@ Adjust the `00200EB7` to your PID (first 4 chars).
 
 ### ACC: wrong controller mapping (ie pedals show up as wheel input and vice-versa)
 Try to delete `My Documents/Assetto Corsa Competizione/Config/controls.json`   
-Note: You'll probably have to re-map all your Buttons!
+Note: You'll have to re-map all your Buttons afterwards!
+
+### ACE: wrong controller mapping (ie pedals show up as wheel input and vice-versa)
+Try to delete `My Documents/ACE/input_devices.inputdeviceconfiguration`   
+Note: You'll have to re-map all your Buttons afterwards!
 
 ## Contact
 
