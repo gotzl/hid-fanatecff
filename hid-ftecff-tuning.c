@@ -291,6 +291,7 @@ int ftec_tuning_classdev_register(struct device *parent,
 		CREATE_SYSFS_FILE(NFR)
 		CREATE_SYSFS_FILE(NIN)
 		CREATE_SYSFS_FILE(INT)
+		CREATE_SYSFS_FILE(FFS)
 	}	
 	// FIXME: this is ClubSport DD specific, but not yet understood how
 	//  to discriminate these
@@ -340,6 +341,7 @@ void ftec_tuning_classdev_unregister(struct ftec_tuning_classdev *ftec_tuning_cd
 		REMOVE_SYSFS_FILE(NFR)
 		REMOVE_SYSFS_FILE(NIN)
 		REMOVE_SYSFS_FILE(INT)
+		REMOVE_SYSFS_FILE(FFS)
 	}	
 	if (hdev->product == CSL_DD_WHEELBASE_DEVICE_ID) {
 		REMOVE_SYSFS_FILE(FUL)
