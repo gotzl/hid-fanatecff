@@ -32,9 +32,15 @@ Arch: `pacman -S linux-headers`
 
 ### Compile and install the driver
 
+Manually
 ```sh
 make  # or `make LLVM=1` in case clang was used to compile the kernel (like in CachyOS)
 sudo make install
+```
+
+Or using **DKMS**
+```sh
+sudo ./install.sh
 ```
 
 Reload the new udev rules, depending on the Linux distribution, without rebooting:
