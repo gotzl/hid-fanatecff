@@ -90,7 +90,7 @@ By default, HIDRAW is not enabled in wine. To enable it, see the [EnableHidraw r
 ##### wine-proton
 The Proton wine fork maintains a hardcoded list of devices for which HIDRAW is enabled. However, there is no official Proton version with HIDRAW enabled yet, see also [this PR](https://github.com/ValveSoftware/wine/pull/269).   
 In the meantime you can use [proton-ge-custom](https://github.com/GloriousEggroll/proton-ge-custom/releases) which includes the required patches starting with [GE-Proton9-26](https://github.com/GloriousEggroll/proton-ge-custom/releases/tag/GE-Proton9-26), where HIDRAW is enabled for Fanatec wheel bases by default (prior versions of Proton will fall back to the Linux libinput/SDL method).
-To force using libinput/SDL set `PROTON_ENABLE_HIDRAW=0 %command%` as launch-option.
+To force using libinput/SDL set `PROTON_DISABLE_HIDRAW=1 %command%` as launch-option.
 
 ## List of compatible games
 
