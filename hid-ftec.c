@@ -4,8 +4,12 @@
 #include <linux/hidraw.h>
 #include <linux/module.h>
 #include <linux/input.h>
+#include <linux/input-event-codes.h>
 
 #include "hid-ftec.h"
+
+#define BTN_RANGE (BTN_9 - BTN_0 + 1)
+#define JOY_RANGE (BTN_DEAD - BTN_JOYSTICK + 1)
 
 // adjustabel initial value for break load cell
 int init_load = 4;
@@ -858,6 +862,39 @@ static int ftec_raw_event(struct hid_device *hdev, struct hid_report *report, u8
 	return 0;
 }
 
+/*
+ * Map buttons manually to extend the default joystick buttn limit
+ */
+static int ftec_input_mapping(struct hid_device *hdev, struct hid_input *hi,
+		struct hid_field *field, struct hid_usage *usage,
+		unsigned long **bit, int *max)
+{
+	// Let the default behavior handle mapping if usage is not a button
+	if ((usage->hid & HID_USAGE_PAGE) != HID_UP_BUTTON)
+		return 0;
+
+	int button = ((usage->hid - 1) & HID_USAGE);
+	int code = button + BTN_0;
+
+	// Detect the end of BTN_* range
+	if (code > BTN_9)
+		code = button + BTN_JOYSTICK - BTN_RANGE;
+
+	// Detect the end of JOYSTICK buttons range
+	if (code > BTN_DEAD)
+		code = button + KEY_MACRO1 - BTN_RANGE - JOY_RANGE;
+
+	// Map overflowing buttons to KEY_RESERVED for the upcoming new input event
+	// It will handle button presses differently and won't depend on defined
+	// ranges. KEY_RESERVED usage is needed for the button to not be ignored.
+	if (code > KEY_MAX)
+		code = KEY_RESERVED;
+
+	hid_map_usage(hi, usage, bit, max, EV_KEY, code);
+	hid_dbg(hdev, "Button %d: usage %d", button, code);
+	return 1;
+}
+
 static const struct hid_device_id devices[] = {
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CLUBSPORT_V2_WHEELBASE_DEVICE_ID), .driver_data = FTEC_FF },
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CLUBSPORT_V25_WHEELBASE_DEVICE_ID), .driver_data = FTEC_FF },
@@ -879,6 +916,7 @@ MODULE_DEVICE_TABLE(hid, devices);
 static struct hid_driver fanatec_driver = {
 	.name = "fanatec",
 	.id_table = devices,
+	.input_mapping = ftec_input_mapping,
         .probe = ftec_probe,
         .remove = ftec_remove,
 	.raw_event = ftec_raw_event,
