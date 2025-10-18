@@ -39,10 +39,6 @@ module_param(enable_module_init_led, int, 0);
 #define JIFFIES2MS(jiffies) ((jiffies) * 1000 / HZ)
 
 static int timer_msecs = DEFAULT_TIMER_PERIOD;
-static int spring_level = 100;
-static int damper_level = 100;
-static int inertia_level = 100;
-static int friction_level = 100;
 
 static int profile = 1;
 module_param(profile, int, 0660);
@@ -563,8 +559,9 @@ static void ftecff_send_cmd(struct ftec_drv_data *drv_data, u8 *cmd)
 	send_report_request_to_device(drv_data);
 	spin_unlock_irqrestore(&drv_data->report_lock, flags);
 
-	if (unlikely(profile))
+	if (unlikely(profile > 1)) {
 		DEBUG("send_cmd: %02X %02X %02X %02X %02X %02X %02X", cmd[0], cmd[1], cmd[2], cmd[3], cmd[4], cmd[5], cmd[6]);
+	}
 }
 
 static __always_inline struct ff_envelope *ftecff_effect_envelope(struct ff_effect *effect)
@@ -684,8 +681,6 @@ static void ftecff_update_slot(struct ftecff_slot *slot, struct ftecff_effect_pa
 			} else {
 				slot->current_cmd[2] = TRANSLATE_FORCE(parameters->level, 8);
 			}
-			// dbg_hid("constant: %i 0x%x 0x%x 0x%x\n",
-			//	parameters->level, slot->current_cmd[2], slot->current_cmd[3], slot->current_cmd[6]);
 			break;
 		case FF_SPRING:
 			d1 = SCALE_VALUE_U16(((parameters->d1) + 0x8000) & 0xffff, 11);
@@ -696,9 +691,6 @@ static void ftecff_update_slot(struct ftecff_slot *slot, struct ftecff_effect_pa
 			slot->current_cmd[3] = d2 >> 3;
 			slot->current_cmd[4] = (SCALE_COEFF(parameters->k2, 4) << 4) + SCALE_COEFF(parameters->k1, 4);
 			slot->current_cmd[6] = SCALE_VALUE_U16(parameters->clip, 8);
-			// dbg_hid("spring: %i %i %i %i %i %i %i %i %i\n",
-			// 	parameters->d1, parameters->d2, parameters->k1, parameters->k2, parameters->clip,
-			// 	slot->current_cmd[2], slot->current_cmd[3], slot->current_cmd[4], slot->current_cmd[6]);
 			break;
 		case FF_DAMPER:
 		case FF_INERTIA:
@@ -706,9 +698,6 @@ static void ftecff_update_slot(struct ftecff_slot *slot, struct ftecff_effect_pa
 			slot->current_cmd[2] = SCALE_COEFF(parameters->k1, 4);
 			slot->current_cmd[4] = SCALE_COEFF(parameters->k2, 4);
 			slot->current_cmd[6] = SCALE_VALUE_U16(parameters->clip, 8);
-			// dbg_hid("damper/friction/inertia: 0x%x %i %i %i %i %i %i %i %i\n",
-			//	slot->effect_type, parameters->d1, parameters->d2, parameters->k1, parameters->k2, parameters->clip,
-			// 	slot->current_cmd[2], slot->current_cmd[4], slot->current_cmd[6]);
 			break;
 	}
 
@@ -717,6 +706,27 @@ static void ftecff_update_slot(struct ftecff_slot *slot, struct ftecff_effect_pa
 		if (original_cmd[i] != slot->current_cmd[i]) {
 			slot->is_updated = 1;
 			break;
+		}
+	}
+
+	if (unlikely(profile) && slot->is_updated) {
+		switch (slot->effect_type) {
+			case FF_CONSTANT:
+				DEBUG("constant: %i 0x%x 0x%x 0x%x\n",
+				       parameters->level, slot->current_cmd[2], slot->current_cmd[3], slot->current_cmd[6]);
+				break;
+			case FF_SPRING:
+				DEBUG("spring: %i %i %i %i %i %i %i %i %i\n",
+				       parameters->d1, parameters->d2, parameters->k1, parameters->k2, parameters->clip,
+				       slot->current_cmd[2], slot->current_cmd[3], slot->current_cmd[4], slot->current_cmd[6]);
+				break;
+			case FF_DAMPER:
+			case FF_INERTIA:
+			case FF_FRICTION:
+				DEBUG("damper/friction/inertia: 0x%x %i %i %i %i %i %i %i %i\n",
+				       slot->effect_type, parameters->d1, parameters->d2, parameters->k1, parameters->k2, parameters->clip,
+				       slot->current_cmd[2], slot->current_cmd[4], slot->current_cmd[6]);
+				break;
 		}
 	}
 }
@@ -811,15 +821,12 @@ static __always_inline int ftecff_timer(struct ftec_drv_data *drv_data)
 	unsigned long jiffies_now = jiffies;
 	unsigned long now = JIFFIES2MS(jiffies_now);
 	unsigned long flags;
-	unsigned int gain;
 	int count;
 	int effect_id;
 	int i;
 
 
 	memset(parameters, 0, sizeof(parameters));
-
-	gain = 0xffff;
 
 	spin_lock_irqsave(&drv_data->timer_lock, flags);
 
@@ -881,16 +888,16 @@ static __always_inline int ftecff_timer(struct ftec_drv_data *drv_data)
 
 	spin_unlock_irqrestore(&drv_data->timer_lock, flags);
 
-	parameters[0].level = (long)parameters[0].level * gain / 0xffff;
-	parameters[1].clip = (long)parameters[1].clip * spring_level / 100;
-	parameters[2].clip = (long)parameters[2].clip * damper_level / 100;
-	parameters[3].clip = (long)parameters[3].clip * inertia_level / 100;
-	parameters[4].clip = (long)parameters[4].clip * friction_level / 100;
+	parameters[0].level = (long)parameters[0].level;
+	parameters[1].clip = (long)parameters[1].clip;
+	parameters[2].clip = (long)parameters[2].clip;
+	parameters[3].clip = (long)parameters[3].clip;
+	parameters[4].clip = (long)parameters[4].clip;
 
 	for (i = 1; i < 5; i++) {
-		parameters[i].k1 = (long)parameters[i].k1 * gain / 0xffff;
-		parameters[i].k2 = (long)parameters[i].k2 * gain / 0xffff;
-		parameters[i].clip = (long)parameters[i].clip * gain / 0xffff;
+		parameters[i].k1 = (long)parameters[i].k1;
+		parameters[i].k2 = (long)parameters[i].k2;
+		parameters[i].clip = (long)parameters[i].clip;
 	}
 
 	for (i = 0; i < 5; i++) {
@@ -978,15 +985,14 @@ static int ftecff_upload_effect(struct input_dev *dev, struct ff_effect *effect,
 	
 	state = &drv_data->states[effect->id];
 
-	if (0) {
+	if (unlikely(profile)) {
 		struct ff_condition_effect *condition = &effect->u.condition[0];
-		printk("id %u, state %lu, delay %u, interval %u, type %#02x, effect direction %#04x", effect->id, state->flags, effect->replay.delay, effect->trigger.interval, effect->type, effect->direction);
+		DEBUG("ftecff_upload_effect: id %u, state %lu, delay %u, length %u, interval %u, type %#02x, effect direction %#04x", effect->id, state->flags, effect->replay.delay, effect->replay.length, effect->trigger.interval, effect->type, effect->direction);
 		if (effect->type == FF_PERIODIC) {
-			printk(KERN_CONT ", magnitude %i, offset %i, phase %#02x, period %u\n", effect->u.periodic.magnitude, effect->u.periodic.offset, effect->u.periodic.phase, effect->u.periodic.period);
+			DEBUG("\tmagnitude %i, offset %i, phase %#02x, period %u\n", effect->u.periodic.magnitude, effect->u.periodic.offset, effect->u.periodic.phase, effect->u.periodic.period);
 		} else {
-			printk(KERN_CONT ", level %i, left_coeff %i, right_coeff %i, left_saturation %i, right_saturation %i\n", effect->u.constant.level, condition->left_coeff, condition->right_coeff, condition->left_saturation, condition->right_saturation);
+			DEBUG("\tlevel %i, left_coeff %i, right_coeff %i, left_saturation %i, right_saturation %i\n", effect->u.constant.level, condition->left_coeff, condition->right_coeff, condition->left_saturation, condition->right_saturation);
 		}
-		// return 0;
 	}
 
 	if (effect->type == FF_PERIODIC && effect->u.periodic.period == 0) {
@@ -1022,6 +1028,10 @@ static int ftecff_play_effect(struct input_dev *dev, int effect_id, int value)
 	state = &drv_data->states[effect_id];
 
 	spin_lock_irqsave(&drv_data->timer_lock, flags);
+	
+	if (unlikely(profile)) {
+		DEBUG("ftecff_play_effect: id %u, value %i", effect_id, value);
+	}
 
 	if (value > 0) {
 		if (test_bit(FF_EFFECT_STARTED, &state->flags)) {
