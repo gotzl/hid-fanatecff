@@ -116,10 +116,11 @@ Games that are expected to work (tested by me and others more or less regularly)
 | WRC(**)         | proton | no, crash on startup | yes | yes | can't be played anymore due to anti-cheat |
 | F1 2020/2021    | proton | yes | yes | no | FFB is weak and some effects seem to be missing, see (#22) |
 | F1 2X           | proton | no, crash on startup | yes | yes | FFB is weak and some effects seem to be missing |
+| JDM             | proton | no (***) | yes | no | |
 | rFactor2        | proton | yes | yes | yes | need to set negative FFB strength |
 | Rennsport       | wine/proton | no, crash on startup | yes | yes | |
 | RRRE            | proton | yes | yes | yes | |
-| Wreckfest       | protno | yes | ? | ? | |
+| Wreckfest       | proton | yes | ? | ? | |
 
 The `libinput-FFB` denotes if the game/FFB works when using Windows input device derived from libinput/SDL.   
 The `hidraw-FFB` column denotes if the game/FFB works when using Windows input device derived from hidraw device.
@@ -127,7 +128,7 @@ In case of the latter, the `hidraw-FanatecSDK` column denotes if the FanatecSDK 
 
 (* input devices can get mixed-up; best have only the wheel-base connected and always use the same USB-slot)   
 (** uses experimental FF_FRICTION effect)   
-(*** unsure if all effects are present)   
+(*** axes input behave like buttons with libinput/SDL)    
 
 ## Device specific
 
