@@ -24,11 +24,12 @@ This is a `out-of-tree` kernel module. Building it depends on
 * compiler (gcc)
 * make
 * kernel-headers
+* evdev-joystick
 
-Examples of installing kernel-headers for some distros:   
-Ubuntu: `sudo apt install linux-headers-generic` or `sudo apt install linux-headers-$(uname -r)`   
+Examples of installing kernel-headers/evdev-joystick for some distros:   
+Debian/Ubuntu: `sudo apt install linux-headers-generic joystick` or `sudo apt install linux-headers-$(uname -r) joystick`   
 Fedora: `sudo dnf install kernel-devel`   
-Arch: `pacman -S linux-headers`   
+Arch: `pacman -S linux-headers joyutils`   
 
 ### Compile and install the driver
 
