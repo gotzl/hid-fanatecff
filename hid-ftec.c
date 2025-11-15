@@ -21,9 +21,9 @@ module_param(hidraw_pid, bool, 0);
 
 static u8 ftec_get_load(struct hid_device *hid)
 {
-    struct list_head *report_list = &hid->report_enum[HID_INPUT_REPORT].report_list;
-    struct hid_report *report = list_entry(report_list->next, struct hid_report, list);	
-    struct ftec_drv_data *drv_data;
+	struct list_head *report_list = &hid->report_enum[HID_INPUT_REPORT].report_list;
+	struct hid_report *report = list_entry(report_list->next, struct hid_report, list);	
+	struct ftec_drv_data *drv_data;
 	unsigned long flags;
 	s32 *value;
 
@@ -45,14 +45,14 @@ static u8 ftec_get_load(struct hid_device *hid)
 	value[4] = 0x00;
 	value[5] = 0x00;
 	value[6] = 0x00;
-	
+
 	hid_hw_request(hid, drv_data->report, HID_REQ_SET_REPORT);
 	spin_unlock_irqrestore(&drv_data->report_lock, flags);
 
-    hid_hw_request(hid, report, HID_REQ_GET_REPORT);
-    hid_hw_wait(hid);
+	hid_hw_request(hid, report, HID_REQ_GET_REPORT);
+	hid_hw_wait(hid);
 
-    return report->field[0]->value[10];
+	return report->field[report->maxfield-1]->value[4];
 }
 
 static void ftec_set_load(struct hid_device *hid, u8 val)
@@ -135,7 +135,7 @@ static ssize_t ftec_load_show(struct device *dev, struct device_attribute *attr,
 		return 0;
 	}
 
-	count = scnprintf(buf, PAGE_SIZE, "%u\n", ftec_get_load(hid));
+	count = scnprintf(buf, PAGE_SIZE, "%u\n", ftec_get_load(hid) - 1);
 	return count;
 }
 
