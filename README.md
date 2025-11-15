@@ -89,8 +89,8 @@ For force feedback to function correctly in Wine/Proton using HIDRAW, the HID de
 By default, HIDRAW is not enabled in wine. To enable it, see the [EnableHidraw registry key](https://gitlab.winehq.org/wine/wine/-/wikis/Useful-Registry-Keys).  
 
 ##### wine-proton
-The Proton wine fork maintains a hardcoded list of devices for which HIDRAW is enabled. However, there is no official Proton version with HIDRAW enabled yet, see also [this PR](https://github.com/ValveSoftware/wine/pull/269).   
-In the meantime you can use [proton-ge-custom](https://github.com/GloriousEggroll/proton-ge-custom/releases) which includes the required patches starting with [GE-Proton9-26](https://github.com/GloriousEggroll/proton-ge-custom/releases/tag/GE-Proton9-26), where HIDRAW is enabled for Fanatec wheel bases by default (prior versions of Proton will fall back to the Linux libinput/SDL method).
+The Proton wine fork maintains a hardcoded list of devices for which HIDRAW is enabled and from Proton 10.0-2 onwards, HIDRAW is enabled for Fanatec wheel bases by default.
+Prior versions of Proton will fall back to the Linux libinput/SDL method.
 To force using libinput/SDL set `PROTON_DISABLE_HIDRAW=1 %command%` as launch-option.
 
 ## List of compatible games
@@ -102,6 +102,7 @@ Games that are expected to work (tested by me and others more or less regularly)
 | AC   | proton       |  yes         |  yes       |     no            |       |
 | ACC  | proton       |  yes(*)      |  yes       |     yes           |       |
 | ACE  | proton       |  no, crash on startup | yes | yes | |
+| AC Rally  | proton       |  no, crash on startup | yes | yes | |
 | Automobilista 2 | proton | no, crash on startup | yes | no | includes FanatecSDK but doesn't drive LEDs/display |
 | BeamNG.drive    | native | yes | - | - | |
 | BeamNG.drive    | proton | yes | yes | no |  |
