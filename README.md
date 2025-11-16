@@ -152,7 +152,7 @@ Advanced functions of wheels/bases are available via sysfs. Generally, these fil
 
 ### CSL Elite pedals
 
-* Loadcell adjustment: `load` (no readback yet)
+* Loadcell adjustment: `load`
 
 ### ClubSport Pedals V3
 
