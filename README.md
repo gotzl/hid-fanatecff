@@ -138,8 +138,16 @@ Advanced functions of wheels/bases are available via sysfs. Generally, these fil
 * Tuning menu (experimental): `tuning_menu/*` 
   * Get/set 'standard'/'advanced' mode: `andvanced_mode`
   * Get/set tuning menu slot: echo number into `SLOT`
-  * Values get/set: `BLI DPR DRI FEI FF FOR SEN SHO SPR ...` (files depend on wheel-base)
   * Reset all tuning sets by echoing anything into `RESET`
+  * Values get/set: `BLI DPR DRI FEI FF FOR SEN SHO SPR ...` (files depend on wheel-base)
+  * Force Feedback Scaling `FFS` (not available on all DD wheel bases)
+    * `0` `Lin` Linear mode
+    * `1` Peak mode (default)
+  * Analogue Paddles `ACP` (read only on wheels with mode selector switch)
+    * `1` `CbP`: Clutch bite point left & right, paddle work in parallel (default)
+    * `2` `CH`: Clutch / Handbrake
+    * `3` `Bt`: Brake / Throttle
+    * `4` `AnA`: Mappable analog axes, shared and interferes with analog ministick if present
 
 ### CSL Elite Base
 

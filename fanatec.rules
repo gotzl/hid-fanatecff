@@ -21,7 +21,7 @@ GOTO="fanatec_end"
 LABEL="ftec_tuning_settings"
 # let everyone in games group read/write tuning-menu entries
 # FIXME: this should be narrowed down in the future! Also, this fires every time a value is changed!
-RUN+="/bin/sh -c 'cd %S%p && chown -f :games advanced_mode RESET SLOT SEN FF SHO BLI DRI FOR SPR DPR NDP NFR FEI INT NIN FUL FFS || true'"
+RUN+="/bin/sh -c 'cd %S%p && chown -f :games advanced_mode RESET SLOT SEN FF SHO BLI DRI FOR SPR DPR NDP NFR FEI INT NIN FUL FFS ACP || true'"
 GOTO="fanatec_end"
 
 LABEL="fanatec_end"

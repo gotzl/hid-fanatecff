@@ -134,6 +134,7 @@ struct ftec_drv_data {
 	FTEC_TUNING_ATTR(NDP, 0x0d, "Natural Damber", ftec_conv_noop_to, ftec_conv_noop_from, 0, 100) \
 	FTEC_TUNING_ATTR(NFR, 0x0e, "Natural Friction", ftec_conv_noop_to, ftec_conv_noop_from, 0, 100) \
 	FTEC_TUNING_ATTR(FEI, 0x11, "Force Effect Intensity", ftec_conv_noop_to, ftec_conv_steps_ten, 0, 100) \
+	FTEC_TUNING_ATTR(ACP, 0x13, "Analogue Paddles", ftec_conv_noop_to, ftec_conv_noop_from, 1, 4) \
 	FTEC_TUNING_ATTR(INT, 0x14, "FFB Interpolation Filter", ftec_conv_noop_to, ftec_conv_noop_from, 0, 20) \
 	FTEC_TUNING_ATTR(NIN, 0x15, "Natural Inertia", ftec_conv_noop_to, ftec_conv_noop_from, 0, 100) \
 	FTEC_TUNING_ATTR(FUL, 0x16, "FullForce", ftec_conv_noop_to, ftec_conv_noop_from, 0, 100) \
