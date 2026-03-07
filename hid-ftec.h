@@ -117,6 +117,7 @@ struct ftec_drv_data {
 	struct led_classdev *led[LEDS];
 #endif    
 	u8 wheel_id;
+	u16 fw_version;
 	struct ftec_tuning_classdev tuning;
 };
 
