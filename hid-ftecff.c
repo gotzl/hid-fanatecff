@@ -8,6 +8,12 @@
 #include <linux/fixp-arith.h>
 #include <linux/version.h>
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0)
+#include <linux/unaligned.h>
+#else
+#include <asm-generic/unaligned.h>
+#endif
+
 #include "hid-ftec.h"
 
 // parameter to set the initial range
@@ -299,6 +305,15 @@ static ssize_t ftec_wheel_show(struct device *dev, struct device_attribute *attr
 	return scnprintf(buf, PAGE_SIZE, "0x%02x\n", drv_data->wheel_id);
 }
 static DEVICE_ATTR(wheel_id, S_IRUSR | S_IRGRP | S_IROTH, ftec_wheel_show, NULL);
+
+
+/* Export the wheel-base firmware version */
+static ssize_t ftec_fw_version_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct ftec_drv_data *drv_data = hid_get_drvdata(to_hid_device(dev));
+	return scnprintf(buf, PAGE_SIZE, "%d\n", drv_data->fw_version);
+}
+static DEVICE_ATTR(fw_version, S_IRUSR | S_IRGRP | S_IROTH, ftec_fw_version_show, NULL);
 
 
 static ssize_t ftec_set_display(struct device *dev, struct device_attribute *attr,
@@ -1137,6 +1152,7 @@ int ftecff_init(struct hid_device *hdev) {
 	CREATE_SYSFS_FILE(display)
 	CREATE_SYSFS_FILE(range)
 	CREATE_SYSFS_FILE(wheel_id)
+	CREATE_SYSFS_FILE(fw_version)
 
 	if (drv_data->quirks & FTEC_TUNING_MENU) {
 		ftec_tuning_classdev_register(&hdev->dev, &drv_data->tuning);
@@ -1171,11 +1187,12 @@ void ftecff_remove(struct hid_device *hdev)
 	hrtimer_cancel(&drv_data->hrtimer);
 	ftecff_stop_effects(drv_data);
 
-	device_remove_file(&hdev->dev, &dev_attr_display);
-	device_remove_file(&hdev->dev, &dev_attr_range);
-	device_remove_file(&hdev->dev, &dev_attr_wheel_id);
-
 #define REMOVE_SYSFS_FILE(name) device_remove_file(&hdev->dev, &dev_attr_##name); \
+
+	REMOVE_SYSFS_FILE(display)
+	REMOVE_SYSFS_FILE(range)
+	REMOVE_SYSFS_FILE(wheel_id)
+	REMOVE_SYSFS_FILE(fw_version)
 
 	if (drv_data->quirks & FTEC_TUNING_MENU) {
 		ftec_tuning_classdev_unregister(&drv_data->tuning);
@@ -1210,7 +1227,8 @@ int ftecff_raw_event(struct hid_device *hdev, struct hid_report *report, u8 *dat
 		// notify userspace about value change
 		if (!(IS_ERR_OR_NULL(drv_data->tuning.dev)))
 			kobject_uevent(&drv_data->tuning.dev->kobj, KOBJ_CHANGE);
-	} else if (data[0] == 0x01) {
+	} else if (data[0] == 0x01 && size == FTEC_WHEEL_REPORT_SIZE) {
+		drv_data->fw_version = get_unaligned_le16(&data[FTEC_WHEEL_REPORT_SIZE-2]);
 		// TODO: detect wheel change and react on it in some way?
 		bool changed = drv_data->wheel_id != data[0x1f];
 		drv_data->wheel_id = data[0x1f];
