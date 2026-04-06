@@ -7,9 +7,7 @@
 #include <linux/input.h>
 #include <linux/module.h>
 #include <linux/usb.h>
-
-#define BTN_RANGE (BTN_9 - BTN_0 + 1)
-#define JOY_RANGE (BTN_DEAD - BTN_JOYSTICK + 1)
+#include <linux/version.h>
 
 // adjustabel initial value for break load cell
 int init_load = 4;
@@ -17,6 +15,9 @@ module_param(init_load, int, 0);
 // expose PID HID descriptor via hidraw
 bool hidraw_pid = true;
 module_param(hidraw_pid, bool, 0);
+// use custom button mapping
+bool custom_button_mapping = false;
+module_param(custom_button_mapping, bool, 0);
 
 #define DEBUG(...) pr_debug("ftec: " __VA_ARGS__)
 
@@ -1019,9 +1020,77 @@ static int ftec_raw_event(struct hid_device *hdev, struct hid_report *report,
 	return 0;
 }
 
-/*
- * Map buttons manually to extend the default joystick buttn limit
- */
+static unsigned int ftec_keymap[] = {
+	[0x01] = BTN_WEST, /* Square */
+	[0x02] = BTN_SOUTH, /* Cross */
+	[0x03] = BTN_EAST, /* Circle */
+	[0x04] = BTN_NORTH, /* Triangle */
+	[0x05] = BTN_TR, /* Gear UP */
+	[0x06] = BTN_TL, /* Gear DOWN */
+	[0x07] = BTN_TR2, /* R2 */
+	[0x08] = BTN_TL2, /* L2 */
+	[0x09] = BTN_START, /* SH */
+	[0x0a] = BTN_SELECT, /* OP */
+	[0x0b] = BTN_THUMBR, /* R3 */
+	[0x0c] = BTN_THUMBL, /* L3 */
+	[0x0d] = BTN_0, /* Shifter R */
+	[0x0e] = BTN_1, /* Shifter 1 */
+	[0x0f] = BTN_2, /* ... */
+	[0x10] = BTN_3,
+	[0x11] = BTN_4,
+	[0x12] = BTN_5,
+	[0x13] = BTN_6,
+	[0x14] = BTN_7, /* Shifter 7 */
+	[0x15] = BTN_8, /* unknown */
+	[0x16] = BTN_MODE, /* PS, XBOX, R toggle-up */
+	[0x17] = BTN_C, /* Funky stick twist left */
+	[0x18] = BTN_Z, /* Funky stick twist right */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0)
+	[0x19] = BTN_GRIPR, /* Funky stick button */
+	[0x1a] = BTN_GRIPL, /* Analog stick button */
+#endif
+	[0x1b] = BTN_BASE, /* L toggle-up */
+	[0x1c] = BTN_BASE2, /* unknown */
+	[0x1d] = BTN_GEAR_DOWN, /* Shifter Seq gear down */
+	[0x1e] = BTN_GEAR_UP, /* Shifter Seq gear up */
+	[0x1f] = BTN_THUMB, /* R toggle-down */
+	[0x20] = BTN_TOP, /* L toggle-down */
+	[0x21] = BTN_THUMB2, /* R toggle-up-normal */
+	[0x22] = BTN_TOP2, /* L toggle-up-normal */
+	[0x23] = BTN_BASE3, /* unknown */
+	[0x24] = BTN_BASE4, /* unknown */
+	[0x25] = KEY_F1, /* L knob: encoder: twist right; constant/pulse: 1 */
+	[0x26] = KEY_F2, /* L knob: encoder: twist left; constant/pulse: 2 */
+	[0x27] = KEY_F3, /* L knob: constant/pulse: 3 */
+	[0x28] = KEY_F4, /* L knob: constant/pulse: 4 */
+	[0x29] = KEY_F5, /* L knob: constant/pulse: 5 */
+	[0x2a] = KEY_F6, /* L knob: constant/pulse: 6 */
+	[0x2b] = KEY_F7, /* L knob: constant/pulse: 7 */
+	[0x2c] = KEY_F8, /* L knob: constant/pulse: 8 */
+	[0x2d] = KEY_F9, /* L knob: constant/pulse: 9 */
+	[0x2e] = KEY_F10, /* L knob: constant/pulse: 10 */
+	[0x2f] = KEY_F11, /* L knob: constant/pulse: 11 */
+	[0x30] = KEY_F12, /* L knob: constant/pulse: 0 */
+	[0x31] = KEY_FN_F1, /* R knob: encoder: twist right; constant/pulse: 1 */
+	[0x32] = KEY_FN_F2, /* R knob: encoder: twist left; constant/pulse: 2 */
+	[0x33] = KEY_FN_F3, /* R knob: constant/pulse: 3 */
+	[0x34] = KEY_FN_F4, /* R knob: constant/pulse: 4 */
+	[0x35] = KEY_FN_F5, /* R knob: constant/pulse: 5 */
+	[0x36] = KEY_FN_F6, /* R knob: constant/pulse: 6 */
+	[0x37] = KEY_FN_F7, /* R knob: constant/pulse: 7 */
+	[0x38] = KEY_FN_F8, /* R knob: constant/pulse: 8 */
+	[0x39] = KEY_FN_F9, /* R knob: constant/pulse: 9 */
+	[0x3a] = KEY_FN_F10, /* R knob: constant/pulse: 10 */
+	[0x3b] = KEY_FN_F11, /* R knob: constant/pulse: 11 */
+	[0x3c] = KEY_FN_F12, /* R knob: constant/pulse: 0 */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0)
+	[0x3d] = BTN_GRIPL2, /* L paddle */
+	[0x3e] = BTN_GRIPR2, /* R paddle */
+#endif
+	[0x6c] = BTN_DEAD, /* mark end of mapping */
+};
+
+unsigned int unmapped = 0;
 static int ftec_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 			      struct hid_field *field, struct hid_usage *usage,
 			      unsigned long **bit, int *max)
@@ -1030,25 +1099,29 @@ static int ftec_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 	if ((usage->hid & HID_USAGE_PAGE) != HID_UP_BUTTON)
 		return 0;
 
-	int button = ((usage->hid - 1) & HID_USAGE);
-	int code = button + BTN_0;
+	unsigned int code;
+	unsigned int button = usage->hid & HID_USAGE;
 
-	// Detect the end of BTN_* range
-	if (code > BTN_9)
-		code = button + BTN_JOYSTICK - BTN_RANGE;
+	if (custom_button_mapping) {
+		if (button >= ARRAY_SIZE(ftec_keymap)) {
+			hid_err(hdev, "unexpected button %d", button);
+			return -1;
+		}
 
-	// Detect the end of JOYSTICK buttons range
-	if (code > BTN_DEAD)
-		code = button + KEY_MACRO1 - BTN_RANGE - JOY_RANGE;
-
-	// Map overflowing buttons to KEY_RESERVED for the upcoming new input event
-	// It will handle button presses differently and won't depend on defined
-	// ranges. KEY_RESERVED usage is needed for the button to not be ignored.
-	if (code > KEY_MAX)
-		code = KEY_RESERVED;
-
+		code = ftec_keymap[button];
+		if (code == 0) {
+			code = BTN_TRIGGER_HAPPY + unmapped;
+			ftec_keymap[button] = code;
+			unmapped += 1;
+		}
+	} else {
+		code = BTN_JOYSTICK + button - 1;
+		if (code > BTN_DEAD) {
+			code = code - BTN_DEAD + KEY_MACRO1;
+		}
+	}
 	hid_map_usage(hi, usage, bit, max, EV_KEY, code);
-	hid_dbg(hdev, "Button %d: usage %d", button, code);
+	hid_dbg(hdev, "button %d; code %d", button, code);
 	return 1;
 }
 
@@ -1060,9 +1133,9 @@ static const struct hid_device_id devices[] = {
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CLUBSPORT_PEDALS_V3_DEVICE_ID),
 	  .driver_data = FTEC_PEDALS },
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_ELITE_WHEELBASE_DEVICE_ID),
-	  .driver_data = FTEC_FF | FTEC_TUNING_MENU | FTEC_WHEELBASE_LEDS },
+	  .driver_data = FTEC_FF | FTEC_TUNING_MENU | FTEC_WHEELBASE_LEDS | FTEC_HIGHRES },
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_ELITE_PS4_WHEELBASE_DEVICE_ID),
-	  .driver_data = FTEC_FF | FTEC_TUNING_MENU | FTEC_WHEELBASE_LEDS },
+	  .driver_data = FTEC_FF | FTEC_TUNING_MENU | FTEC_WHEELBASE_LEDS | FTEC_HIGHRES },
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_ELITE_PEDALS_DEVICE_ID),
 	  .driver_data = FTEC_PEDALS },
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_LC_PEDALS_DEVICE_ID),
