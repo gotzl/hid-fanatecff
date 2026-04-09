@@ -313,6 +313,22 @@
     0x55, 0x00,                //   Unit Exponent (0)
 0xC0,                          // End Collection (Set Periodic Report)
 
+0x09, 0x7D,                    // Usage (Device Gain Report)
+0xA1, 0x02,                    // Collection (Logical)
+    0x85, 0x19,                //   Report ID (25)
+
+    0x09, 0x7E,                //   Usage (Device Gain)
+    0x15, 0x00,                //   Logical Minimum (0)
+    0x25, 0x64,                //   Logical Maximum (100)
+    0x35, 0x00,                //   Physical Minimum (0)
+    0x46, 0x10, 0x27,          //   Physical Maximum (10000)
+    0x75, 0x08,                //   Report Size (8)
+    0x95, 0x01,                //   Report Count (1)
+    0x91, 0x02,                //   Output (Data,Var,Abs)
+    0x35, 0x00,                //   Physical Minimum (0)
+    0x45, 0x00,                //   Physical Maximum (0)
+0xC0,                          // End Collection (Device Gain Report)
+
 0x09, 0x77,                    // Usage (Effect Operation Report)
 0xA1, 0x02,                    // Collection (Logical)
     0x85, 0x1a,                //   Report ID (26)

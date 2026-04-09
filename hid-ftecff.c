@@ -902,16 +902,16 @@ static __always_inline int ftecff_timer(struct ftec_drv_data *drv_data)
 
 	spin_unlock_irqrestore(&drv_data->timer_lock, flags);
 
-	parameters[0].level = (long)parameters[0].level;
+	parameters[0].level = (long)parameters[0].level * drv_data->gain / 0xffff;
 	parameters[1].clip = (long)parameters[1].clip;
 	parameters[2].clip = (long)parameters[2].clip;
 	parameters[3].clip = (long)parameters[3].clip;
 	parameters[4].clip = (long)parameters[4].clip;
 
 	for (i = 1; i < 5; i++) {
-		parameters[i].k1 = (long)parameters[i].k1;
-		parameters[i].k2 = (long)parameters[i].k2;
-		parameters[i].clip = (long)parameters[i].clip;
+		parameters[i].k1 = (long)parameters[i].k1 * drv_data->gain / 0xffff;
+		parameters[i].k2 = (long)parameters[i].k2 * drv_data->gain / 0xffff;
+		parameters[i].clip = (long)parameters[i].clip * drv_data->gain / 0xffff;
 	}
 
 	for (i = 0; i < 5; i++) {
@@ -1077,6 +1077,14 @@ static void ftecff_destroy(struct ff_device *ff)
 {
 }
 
+static void ftecff_set_gain(struct input_dev *dev, u16 value)
+{
+	struct hid_device *hdev = input_get_drvdata(dev);
+	struct ftec_drv_data *drv_data = hid_get_drvdata(hdev);
+	drv_data->gain = value;
+	dbg_hid("setting gain %x", value);
+}
+
 int ftecff_init(struct hid_device *hdev) {
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hdev);
 	struct hid_input *hidinput = list_entry(hdev->inputs.next, struct hid_input, list);
@@ -1100,6 +1108,7 @@ int ftecff_init(struct hid_device *hdev) {
 	ff->upload = ftecff_upload_effect;
 	ff->playback = ftecff_play_effect;
 	ff->destroy = ftecff_destroy;
+	ff->set_gain = ftecff_set_gain;
 
 	/* init sequence */
 	{

@@ -210,6 +210,7 @@ static int ftec_init(struct hid_device *hdev)
 #define PID_REPORT_SET_CONDITION 19 // usage 0x5f
 #define PID_REPORT_SET_CONSTANT_FORCE 20 // usage 0x73
 #define PID_REPORT_SET_PERIODIC 21 // usage 0x6e
+#define PID_REPORT_DEVICE_GAIN 25 // usage 0x7d
 #define PID_REPORT_EFFECT_OPERATION 26 // usage 0x77
 
 // Effect operations
@@ -403,6 +404,11 @@ struct __attribute__((packed)) effect_operation {
 	u8 id;
 	u8 op;
 	u8 count;
+};
+
+struct __attribute__((packed)) device_gain {
+	u8 report_id;
+	u8 gain_percent;
 };
 
 struct __attribute__((packed)) device_control {
@@ -741,6 +747,21 @@ static int handle_pid_device_control(struct ftec_drv_data *drv_data,
 	return count;
 }
 
+static int handle_pid_device_gain(struct ftec_drv_data *drv_data,
+				     struct hid_device *hdev,
+				     struct input_dev *inputdev,
+				     struct ff_device *ff,
+				     unsigned char reportnum, u8 *buf,
+				     size_t count)
+{
+	PID_HANDLER_PROLOGUE(struct device_gain);
+	DEBUG("device_gain: %x", params->gain_percent);
+
+	drv_data->gain = (0xffff * params->gain_percent) / 100;
+	return count;
+}
+
+
 static int ftec_client_ll_raw_request(struct hid_device *hdev,
 				      unsigned char reportnum, u8 *buf,
 				      size_t count, unsigned char report_type,
@@ -783,6 +804,9 @@ static int ftec_client_ll_raw_request(struct hid_device *hdev,
 	case PID_REPORT_DEVICE_CONTROL:
 		return handle_pid_device_control(drv_data, hdev, inputdev, ff,
 						 reportnum, buf, count);
+	case PID_REPORT_DEVICE_GAIN:
+		return handle_pid_device_gain(drv_data, hdev, inputdev, ff,
+				                 reportnum, buf, count);
 	default:
 		hid_err(hdev, "Not implemented report %u\n", reportnum);
 		return PID_ERROR_INVALID_SIZE;
