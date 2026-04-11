@@ -1,20 +1,21 @@
 #include <linux/module.h>
 #include <linux/hid.h>
 
-#include "hid-ftec.h" 
+#include "hid-ftec.h"
 
 struct ftec_tuning_attr_t {
-	const char* name;
+	const char *name;
 	const enum ftec_tuning_attrs_enum id;
 	const u8 addr;
-	const char* description;
+	const char *description;
 	int (*conv_to)(struct ftec_drv_data *, u8);
 	u8 (*conv_from)(struct ftec_drv_data *, int);
 	const int min;
 	const int max;
 };
 
-static int ftec_conv_sens_to(struct ftec_drv_data *drv_data, u8 val) {
+static int ftec_conv_sens_to(struct ftec_drv_data *drv_data, u8 val)
+{
 	if (drv_data->max_range <= 1090) {
 		return val * 10;
 	}
@@ -26,7 +27,8 @@ static int ftec_conv_sens_to(struct ftec_drv_data *drv_data, u8 val) {
 	return 90 + 10 * (val - 0x8a);
 };
 
-static u8 ftec_conv_sens_from(struct ftec_drv_data *drv_data, int val) {
+static u8 ftec_conv_sens_from(struct ftec_drv_data *drv_data, int val)
+{
 	if (drv_data->max_range <= 1090) {
 		return val / 10;
 	}
@@ -37,63 +39,72 @@ static u8 ftec_conv_sens_from(struct ftec_drv_data *drv_data, int val) {
 	return 0x8a + (val - 90) / 10;
 };
 
-static int ftec_conv_times_ten(struct ftec_drv_data *drv_data, u8 val) {
+static int ftec_conv_times_ten(struct ftec_drv_data *drv_data, u8 val)
+{
 	return val * 10;
 };
 
-static u8 ftec_conv_div_ten(struct ftec_drv_data *drv_data, int val) {
+static u8 ftec_conv_div_ten(struct ftec_drv_data *drv_data, int val)
+{
 	return val / 10;
 };
 
-static u8 ftec_conv_steps_ten(struct ftec_drv_data *drv_data, int val) {
+static u8 ftec_conv_steps_ten(struct ftec_drv_data *drv_data, int val)
+{
 	return 10 * (val / 10);
 }
 
-static int ftec_conv_signed_to(struct ftec_drv_data *drv_data, u8 val) {
+static int ftec_conv_signed_to(struct ftec_drv_data *drv_data, u8 val)
+{
 	return (s8)val;
 };
 
-static int ftec_conv_noop_to(struct ftec_drv_data *drv_data, u8 val) {
+static int ftec_conv_noop_to(struct ftec_drv_data *drv_data, u8 val)
+{
 	return val;
 };
 
-static u8 ftec_conv_noop_from(struct ftec_drv_data *drv_data, int val) {
+static u8 ftec_conv_noop_from(struct ftec_drv_data *drv_data, int val)
+{
 	return val;
 };
-
 
 static const struct ftec_tuning_attr_t ftec_tuning_attrs[] = {
 #define FTEC_TUNING_ATTR(id, addr, desc, conv_to, conv_from, min, max) \
 	{ #id, id, addr, desc, conv_to, conv_from, min, max },
-FTEC_TUNING_ATTRS
+	FTEC_TUNING_ATTRS
 #undef FTEC_TUNING_ATTR
 };
 
-
-static int ftec_tuning_write(struct hid_device *hid, int addr, int val) {
+static int ftec_tuning_write(struct hid_device *hid, int addr, int val)
+{
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hid);
 	drv_data->tuning.ftec_tuning_data[0] = 0xff;
 	drv_data->tuning.ftec_tuning_data[1] = 0x03;
 	drv_data->tuning.ftec_tuning_data[2] = 0x00;
-	drv_data->tuning.ftec_tuning_data[addr+1] = val;
-	return hid_hw_output_report(hid, &drv_data->tuning.ftec_tuning_data[0], FTEC_TUNING_REPORT_SIZE);
+	drv_data->tuning.ftec_tuning_data[addr + 1] = val;
+	return hid_hw_output_report(hid, &drv_data->tuning.ftec_tuning_data[0],
+				    FTEC_TUNING_REPORT_SIZE);
 }
 
-static int ftec_tuning_select(struct hid_device *hid, int slot) {
+static int ftec_tuning_select(struct hid_device *hid, int slot)
+{
 	u8 *buf = kcalloc(FTEC_TUNING_REPORT_SIZE, sizeof(u8), GFP_KERNEL);
 	int ret;
-    
+
 	buf[0] = 0xff;
 	buf[1] = 0x03;
 	buf[2] = 0x01;
-	buf[3] = slot&0xff;
+	buf[3] = slot & 0xff;
 
 	ret = hid_hw_output_report(hid, buf, FTEC_TUNING_REPORT_SIZE);
 	kfree(buf);
 	return ret;
 }
 
-static enum ftec_tuning_attrs_enum ftec_tuning_get_id(struct device_attribute *attr) {
+static enum ftec_tuning_attrs_enum
+ftec_tuning_get_id(struct device_attribute *attr)
+{
 	int idx = 0;
 	for (; idx < sizeof(ftec_tuning_attrs); idx++) {
 		if (strcmp(attr->attr.name, ftec_tuning_attrs[idx].name) == 0) {
@@ -104,15 +115,22 @@ static enum ftec_tuning_attrs_enum ftec_tuning_get_id(struct device_attribute *a
 	return FTEC_TUNING_ATTR_NONE;
 }
 
-ssize_t _ftec_tuning_show(struct device *dev, enum ftec_tuning_attrs_enum id, char *buf)
+ssize_t _ftec_tuning_show(struct device *dev, enum ftec_tuning_attrs_enum id,
+			  char *buf)
 {
 	struct hid_device *hid = to_hid_device(dev->parent);
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hid);
 	const struct ftec_tuning_attr_t *tuning_attr = &ftec_tuning_attrs[id];
-	return scnprintf(buf, PAGE_SIZE, "%i\n", tuning_attr->conv_to(drv_data, drv_data->tuning.ftec_tuning_data[tuning_attr->addr+1]));
+	return scnprintf(
+		buf, PAGE_SIZE, "%i\n",
+		tuning_attr->conv_to(
+			drv_data,
+			drv_data->tuning
+				.ftec_tuning_data[tuning_attr->addr + 1]));
 }
 
-static ssize_t ftec_tuning_show(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t ftec_tuning_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
 {
 	enum ftec_tuning_attrs_enum id = ftec_tuning_get_id(attr);
 	if (id == FTEC_TUNING_ATTR_NONE) {
@@ -123,7 +141,7 @@ static ssize_t ftec_tuning_show(struct device *dev, struct device_attribute *att
 }
 
 ssize_t _ftec_tuning_store(struct device *dev, enum ftec_tuning_attrs_enum id,
-				  const char *buf, size_t count)
+			   const char *buf, size_t count)
 {
 	struct hid_device *hid = to_hid_device(dev->parent);
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hid);
@@ -131,8 +149,10 @@ ssize_t _ftec_tuning_store(struct device *dev, enum ftec_tuning_attrs_enum id,
 	int val, _max = tuning_attr->max;
 
 	/* guard from writing w/o having read values */
-	if (drv_data->tuning.ftec_tuning_data[ftec_tuning_attrs[SLOT].addr+1] == 0x0) {
-		hid_err(hid, "Cannot write to tuning-menu, not yet read data from device.\n");
+	if (drv_data->tuning.ftec_tuning_data[ftec_tuning_attrs[SLOT].addr + 1] ==
+	    0x0) {
+		hid_err(hid,
+			"Cannot write to tuning-menu, not yet read data from device.\n");
 		return -EINVAL;
 	}
 
@@ -152,10 +172,11 @@ ssize_t _ftec_tuning_store(struct device *dev, enum ftec_tuning_attrs_enum id,
 
 	/* check if value is in range */
 	if (val < tuning_attr->min || val > _max) {
-		hid_err(hid, "Value %i out of range [%i, %i]!\n", val, tuning_attr->min, _max);
+		hid_err(hid, "Value %i out of range [%i, %i]!\n", val,
+			tuning_attr->min, _max);
 		return -EINVAL;
 	}
-	
+
 	/* convert value to device specific value */
 	val = tuning_attr->conv_from(drv_data, val);
 	dbg_hid(" ... ftec_tuning_store %s %i\n", tuning_attr->name, val);
@@ -172,9 +193,9 @@ ssize_t _ftec_tuning_store(struct device *dev, enum ftec_tuning_attrs_enum id,
 	return count;
 }
 
-
-static ssize_t ftec_tuning_store(struct device *dev, struct device_attribute *attr,
-				 const char *buf, size_t count)
+static ssize_t ftec_tuning_store(struct device *dev,
+				 struct device_attribute *attr, const char *buf,
+				 size_t count)
 {
 	enum ftec_tuning_attrs_enum id = ftec_tuning_get_id(attr);
 	if (id == FTEC_TUNING_ATTR_NONE) {
@@ -183,30 +204,35 @@ static ssize_t ftec_tuning_store(struct device *dev, struct device_attribute *at
 	return _ftec_tuning_store(dev, id, buf, count);
 }
 
-static ssize_t ftec_tuning_reset(struct device *dev, struct device_attribute *attr,
-				 const char *buf, size_t count)
+static ssize_t ftec_tuning_reset(struct device *dev,
+				 struct device_attribute *attr, const char *buf,
+				 size_t count)
 {
 	struct hid_device *hid = to_hid_device(dev->parent);
 	u8 *buffer = kcalloc(FTEC_TUNING_REPORT_SIZE, sizeof(u8), GFP_KERNEL);
 	int ret;
-    	
+
 	// request current values
 	buffer[0] = 0xff;
 	buffer[1] = 0x03;
 	buffer[2] = 0x04;
 
 	ret = hid_hw_output_report(hid, buffer, FTEC_TUNING_REPORT_SIZE);
-	
+
 	return count;
 }
 
 static DEVICE_ATTR(RESET, S_IWUSR | S_IWGRP, NULL, ftec_tuning_reset);
-#define FTEC_TUNING_ATTR(id, addr, desc, conv_to, conv_from, min, max) \
-	static DEVICE_ATTR(id, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_tuning_show, ftec_tuning_store);
+#define FTEC_TUNING_ATTR(id, addr, desc, conv_to, conv_from, min, max)      \
+	static DEVICE_ATTR(id,                                              \
+			   S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, \
+			   ftec_tuning_show, ftec_tuning_store);
 FTEC_TUNING_ATTRS
 #undef FTEC_TUNING_ATTR
 
-static ssize_t ftec_tuning_advanced_mode_show(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t ftec_tuning_advanced_mode_show(struct device *dev,
+					      struct device_attribute *attr,
+					      char *buf)
 {
 	struct hid_device *hid = to_hid_device(dev->parent);
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hid);
@@ -214,11 +240,13 @@ static ssize_t ftec_tuning_advanced_mode_show(struct device *dev, struct device_
 		hid_err(hid, "Private driver data not found!\n");
 		return 0;
 	}
-	return scnprintf(buf, PAGE_SIZE, "%u\n", drv_data->tuning.advanced_mode);
+	return scnprintf(buf, PAGE_SIZE, "%u\n",
+			 drv_data->tuning.advanced_mode);
 }
 
-static ssize_t ftec_tuning_advanced_mode_store(struct device *dev, struct device_attribute *attr, 
-		const char *buf, size_t count)
+static ssize_t ftec_tuning_advanced_mode_store(struct device *dev,
+					       struct device_attribute *attr,
+					       const char *buf, size_t count)
 {
 	struct hid_device *hid = to_hid_device(dev->parent);
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hid);
@@ -229,37 +257,46 @@ static ssize_t ftec_tuning_advanced_mode_store(struct device *dev, struct device
 	}
 	if (kstrtou8(buf, 0, &advanced_mode) == 0) {
 		if (advanced_mode != drv_data->tuning.advanced_mode) {
-			u8 *buffer = kcalloc(FTEC_TUNING_REPORT_SIZE, sizeof(u8), GFP_KERNEL);
+			u8 *buffer = kcalloc(FTEC_TUNING_REPORT_SIZE,
+					     sizeof(u8), GFP_KERNEL);
 			buffer[0] = 0xff;
 			buffer[1] = 0x03;
 			buffer[2] = 0x06;
-			(void)hid_hw_output_report(hid, buffer, FTEC_TUNING_REPORT_SIZE);
+			(void)hid_hw_output_report(hid, buffer,
+						   FTEC_TUNING_REPORT_SIZE);
 		}
 	}
 	return count;
 }
-static DEVICE_ATTR(advanced_mode, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH, ftec_tuning_advanced_mode_show, ftec_tuning_advanced_mode_store);
+static DEVICE_ATTR(advanced_mode,
+		   S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH,
+		   ftec_tuning_advanced_mode_show,
+		   ftec_tuning_advanced_mode_store);
 
 static struct class ftec_tuning_class = {
 	.name = "ftec_tuning",
 };
 
 int ftec_tuning_classdev_register(struct device *parent,
-		struct ftec_tuning_classdev *ftec_tuning_cdev)
+				  struct ftec_tuning_classdev *ftec_tuning_cdev)
 {
 	struct hid_device *hdev = to_hid_device(parent);
 	int ret;
-	
+
 	ret = class_register(&ftec_tuning_class);
 	if (ret)
 		return 0;
 
-	ftec_tuning_cdev->dev = device_create(&ftec_tuning_class, parent, 0, NULL, "%s", dev_name(&hdev->dev));
+	ftec_tuning_cdev->dev = device_create(&ftec_tuning_class, parent, 0,
+					      NULL, "%s", dev_name(&hdev->dev));
 
-#define CREATE_SYSFS_FILE(name) \
-	ret = device_create_file(ftec_tuning_cdev->dev, &dev_attr_##name); \
-	if (ret) \
-		hid_warn(hdev, "Unable to create sysfs interface for '%s', errno %d\n", #name, ret); \
+#define CREATE_SYSFS_FILE(name)                                                  \
+	ret = device_create_file(ftec_tuning_cdev->dev, &dev_attr_##name);       \
+	if (ret)                                                                 \
+		hid_warn(                                                        \
+			hdev,                                                    \
+			"Unable to create sysfs interface for '%s', errno %d\n", \
+			#name, ret);
 
 	CREATE_SYSFS_FILE(advanced_mode)
 
@@ -273,11 +310,11 @@ int ftec_tuning_classdev_register(struct device *parent,
 	CREATE_SYSFS_FILE(DPR)
 	CREATE_SYSFS_FILE(ACP)
 
-	if (hdev->product == CSL_ELITE_WHEELBASE_DEVICE_ID || 
+	if (hdev->product == CSL_ELITE_WHEELBASE_DEVICE_ID ||
 	    hdev->product == CSL_ELITE_PS4_WHEELBASE_DEVICE_ID) {
 		CREATE_SYSFS_FILE(DRI)
 	}
-	if (hdev->product == CSL_ELITE_WHEELBASE_DEVICE_ID || 
+	if (hdev->product == CSL_ELITE_WHEELBASE_DEVICE_ID ||
 	    hdev->product == CSL_ELITE_PS4_WHEELBASE_DEVICE_ID ||
 	    hdev->product == CSL_DD_WHEELBASE_DEVICE_ID ||
 	    hdev->product == PODIUM_WHEELBASE_DD1_DEVICE_ID ||
@@ -293,7 +330,7 @@ int ftec_tuning_classdev_register(struct device *parent,
 		CREATE_SYSFS_FILE(NIN)
 		CREATE_SYSFS_FILE(INT)
 		CREATE_SYSFS_FILE(FFS)
-	}	
+	}
 	// FIXME: this is ClubSport DD specific, but not yet understood how
 	//  to discriminate these
 	if (hdev->product == CSL_DD_WHEELBASE_DEVICE_ID) {
@@ -303,14 +340,16 @@ int ftec_tuning_classdev_register(struct device *parent,
 	return 0;
 }
 
-void ftec_tuning_classdev_unregister(struct ftec_tuning_classdev *ftec_tuning_cdev)
+void ftec_tuning_classdev_unregister(
+	struct ftec_tuning_classdev *ftec_tuning_cdev)
 {
 	struct hid_device *hdev = to_hid_device(ftec_tuning_cdev->dev->parent);
 
 	if (IS_ERR_OR_NULL(ftec_tuning_cdev->dev))
 		return;
-	
-#define REMOVE_SYSFS_FILE(name) device_remove_file(ftec_tuning_cdev->dev, &dev_attr_##name); \
+
+#define REMOVE_SYSFS_FILE(name) \
+	device_remove_file(ftec_tuning_cdev->dev, &dev_attr_##name);
 
 	REMOVE_SYSFS_FILE(advanced_mode)
 
@@ -322,13 +361,13 @@ void ftec_tuning_classdev_unregister(struct ftec_tuning_classdev *ftec_tuning_cd
 	REMOVE_SYSFS_FILE(FOR)
 	REMOVE_SYSFS_FILE(SPR)
 	REMOVE_SYSFS_FILE(DPR)
-    REMOVE_SYSFS_FILE(ACP)
+	REMOVE_SYSFS_FILE(ACP)
 
-	if (hdev->product == CSL_ELITE_WHEELBASE_DEVICE_ID || 
+	if (hdev->product == CSL_ELITE_WHEELBASE_DEVICE_ID ||
 	    hdev->product == CSL_ELITE_PS4_WHEELBASE_DEVICE_ID) {
 		REMOVE_SYSFS_FILE(DRI)
 	}
-	if (hdev->product == CSL_ELITE_WHEELBASE_DEVICE_ID || 
+	if (hdev->product == CSL_ELITE_WHEELBASE_DEVICE_ID ||
 	    hdev->product == CSL_ELITE_PS4_WHEELBASE_DEVICE_ID ||
 	    hdev->product == CSL_DD_WHEELBASE_DEVICE_ID ||
 	    hdev->product == PODIUM_WHEELBASE_DD1_DEVICE_ID ||
@@ -344,7 +383,7 @@ void ftec_tuning_classdev_unregister(struct ftec_tuning_classdev *ftec_tuning_cd
 		REMOVE_SYSFS_FILE(NIN)
 		REMOVE_SYSFS_FILE(INT)
 		REMOVE_SYSFS_FILE(FFS)
-	}	
+	}
 	if (hdev->product == CSL_DD_WHEELBASE_DEVICE_ID) {
 		REMOVE_SYSFS_FILE(FUL)
 	}

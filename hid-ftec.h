@@ -29,18 +29,16 @@
 #define CLUBSPORT_STEERING_WHEEL_FORMULA_V2_ID 0x0a
 #define PODIUM_STEERING_WHEEL_PORSCHE_911_GT3_R_ID 0x0c
 
-
 // quirks
-#define FTEC_FF                 0x001
-#define FTEC_PEDALS             0x002
-#define FTEC_WHEELBASE_LEDS     0x004
-#define FTEC_HIGHRES		0x008
-#define FTEC_TUNING_MENU	0x010
+#define FTEC_FF 0x001
+#define FTEC_PEDALS 0x002
+#define FTEC_WHEELBASE_LEDS 0x004
+#define FTEC_HIGHRES 0x008
+#define FTEC_TUNING_MENU 0x010
 
 // report sizes
 #define FTEC_TUNING_REPORT_SIZE 64
 #define FTEC_WHEEL_REPORT_SIZE 34
-
 
 // misc
 #define LEDS 9
@@ -109,55 +107,70 @@ struct ftec_drv_data {
 	struct ftec_drv_data_client client;
 	struct ftecff_slot slots[5];
 	struct ftecff_effect_state states[FTECFF_MAX_EFFECTS];
-	int effects_used;	
+	int effects_used;
 	u16 range;
 	u16 max_range;
 	u16 min_range;
 #if IS_REACHABLE(CONFIG_LEDS_CLASS)
 	u16 led_state;
 	struct led_classdev *led[LEDS];
-#endif    
+#endif
 	u8 wheel_id;
 	u16 fw_version;
 	struct ftec_tuning_classdev tuning;
 };
 
-#define FTEC_TUNING_ATTRS \
-	FTEC_TUNING_ATTR(SLOT, 0x02, "Slot", ftec_conv_noop_to, ftec_conv_noop_from, 1, 5) \
-	FTEC_TUNING_ATTR(SEN, 0x03, "Sensivity", ftec_conv_sens_to, ftec_conv_sens_from, 90, 0) \
-	FTEC_TUNING_ATTR(FF, 0x04, "Force Feedback Strength", ftec_conv_noop_to, ftec_conv_noop_from, 0, 100) \
-	FTEC_TUNING_ATTR(SHO, 0x05, "Wheel Vibration Motor", ftec_conv_times_ten, ftec_conv_div_ten, 0, 100) \
-	FTEC_TUNING_ATTR(BLI, 0x06, "Break Level Indicator", ftec_conv_noop_to, ftec_conv_noop_from, 0, 101) \
-	FTEC_TUNING_ATTR(FFS, 0x07, "Force Feedback Scaling", ftec_conv_noop_to, ftec_conv_noop_from, 0, 1) \
-	FTEC_TUNING_ATTR(DRI, 0x09, "Drift Mode", ftec_conv_signed_to, ftec_conv_noop_from, -5, 3) \
-	FTEC_TUNING_ATTR(FOR, 0x0a, "Force Effect Strength", ftec_conv_times_ten, ftec_conv_div_ten, 0, 120) \
-	FTEC_TUNING_ATTR(SPR, 0x0b, "Spring Effect Strength", ftec_conv_times_ten, ftec_conv_div_ten, 0, 120) \
-	FTEC_TUNING_ATTR(DPR, 0x0c, "Damper Effect Strength", ftec_conv_times_ten, ftec_conv_div_ten, 0, 120) \
-	FTEC_TUNING_ATTR(NDP, 0x0d, "Natural Damber", ftec_conv_noop_to, ftec_conv_noop_from, 0, 100) \
-	FTEC_TUNING_ATTR(NFR, 0x0e, "Natural Friction", ftec_conv_noop_to, ftec_conv_noop_from, 0, 100) \
-	FTEC_TUNING_ATTR(FEI, 0x11, "Force Effect Intensity", ftec_conv_noop_to, ftec_conv_steps_ten, 0, 100) \
-	FTEC_TUNING_ATTR(ACP, 0x13, "Analogue Paddles", ftec_conv_noop_to, ftec_conv_noop_from, 1, 4) \
-	FTEC_TUNING_ATTR(INT, 0x14, "FFB Interpolation Filter", ftec_conv_noop_to, ftec_conv_noop_from, 0, 20) \
-	FTEC_TUNING_ATTR(NIN, 0x15, "Natural Inertia", ftec_conv_noop_to, ftec_conv_noop_from, 0, 100) \
-	FTEC_TUNING_ATTR(FUL, 0x16, "FullForce", ftec_conv_noop_to, ftec_conv_noop_from, 0, 100) \
+#define FTEC_TUNING_ATTRS                                                  \
+	FTEC_TUNING_ATTR(SLOT, 0x02, "Slot", ftec_conv_noop_to,            \
+			 ftec_conv_noop_from, 1, 5)                        \
+	FTEC_TUNING_ATTR(SEN, 0x03, "Sensivity", ftec_conv_sens_to,        \
+			 ftec_conv_sens_from, 90, 0)                       \
+	FTEC_TUNING_ATTR(FF, 0x04, "Force Feedback Strength",              \
+			 ftec_conv_noop_to, ftec_conv_noop_from, 0, 100)   \
+	FTEC_TUNING_ATTR(SHO, 0x05, "Wheel Vibration Motor",               \
+			 ftec_conv_times_ten, ftec_conv_div_ten, 0, 100)   \
+	FTEC_TUNING_ATTR(BLI, 0x06, "Break Level Indicator",               \
+			 ftec_conv_noop_to, ftec_conv_noop_from, 0, 101)   \
+	FTEC_TUNING_ATTR(FFS, 0x07, "Force Feedback Scaling",              \
+			 ftec_conv_noop_to, ftec_conv_noop_from, 0, 1)     \
+	FTEC_TUNING_ATTR(DRI, 0x09, "Drift Mode", ftec_conv_signed_to,     \
+			 ftec_conv_noop_from, -5, 3)                       \
+	FTEC_TUNING_ATTR(FOR, 0x0a, "Force Effect Strength",               \
+			 ftec_conv_times_ten, ftec_conv_div_ten, 0, 120)   \
+	FTEC_TUNING_ATTR(SPR, 0x0b, "Spring Effect Strength",              \
+			 ftec_conv_times_ten, ftec_conv_div_ten, 0, 120)   \
+	FTEC_TUNING_ATTR(DPR, 0x0c, "Damper Effect Strength",              \
+			 ftec_conv_times_ten, ftec_conv_div_ten, 0, 120)   \
+	FTEC_TUNING_ATTR(NDP, 0x0d, "Natural Damber", ftec_conv_noop_to,   \
+			 ftec_conv_noop_from, 0, 100)                      \
+	FTEC_TUNING_ATTR(NFR, 0x0e, "Natural Friction", ftec_conv_noop_to, \
+			 ftec_conv_noop_from, 0, 100)                      \
+	FTEC_TUNING_ATTR(FEI, 0x11, "Force Effect Intensity",              \
+			 ftec_conv_noop_to, ftec_conv_steps_ten, 0, 100)   \
+	FTEC_TUNING_ATTR(ACP, 0x13, "Analogue Paddles", ftec_conv_noop_to, \
+			 ftec_conv_noop_from, 1, 4)                        \
+	FTEC_TUNING_ATTR(INT, 0x14, "FFB Interpolation Filter",            \
+			 ftec_conv_noop_to, ftec_conv_noop_from, 0, 20)    \
+	FTEC_TUNING_ATTR(NIN, 0x15, "Natural Inertia", ftec_conv_noop_to,  \
+			 ftec_conv_noop_from, 0, 100)                      \
+	FTEC_TUNING_ATTR(FUL, 0x16, "FullForce", ftec_conv_noop_to,        \
+			 ftec_conv_noop_from, 0, 100)
 
 enum ftec_tuning_attrs_enum {
-#define FTEC_TUNING_ATTR(id, addr, desc, conv_to, conv_from, min, max) \
-	id,
-FTEC_TUNING_ATTRS
-	FTEC_TUNING_ATTR_NONE
+#define FTEC_TUNING_ATTR(id, addr, desc, conv_to, conv_from, min, max) id,
+	FTEC_TUNING_ATTRS FTEC_TUNING_ATTR_NONE
 #undef FTEC_TUNING_ATTR
 };
 
+int ftecff_init(struct hid_device *);
+void ftecff_remove(struct hid_device *);
+int ftecff_raw_event(struct hid_device *, struct hid_report *, u8 *, int);
 
-int ftecff_init(struct hid_device*);
-void ftecff_remove(struct hid_device*);
-int ftecff_raw_event(struct hid_device*, struct hid_report*, u8*, int);
-
-int ftec_tuning_classdev_register(struct device*, struct ftec_tuning_classdev*);
-void ftec_tuning_classdev_unregister(struct ftec_tuning_classdev*);
-ssize_t _ftec_tuning_show(struct device*, enum ftec_tuning_attrs_enum, char*);
-ssize_t _ftec_tuning_store(struct device*, enum ftec_tuning_attrs_enum, const char*, size_t);
-
+int ftec_tuning_classdev_register(struct device *,
+				  struct ftec_tuning_classdev *);
+void ftec_tuning_classdev_unregister(struct ftec_tuning_classdev *);
+ssize_t _ftec_tuning_show(struct device *, enum ftec_tuning_attrs_enum, char *);
+ssize_t _ftec_tuning_store(struct device *, enum ftec_tuning_attrs_enum,
+			   const char *, size_t);
 
 #endif
