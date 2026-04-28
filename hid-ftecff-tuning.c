@@ -309,6 +309,7 @@ int ftec_tuning_classdev_register(struct device *parent,
 	CREATE_SYSFS_FILE(SPR)
 	CREATE_SYSFS_FILE(DPR)
 	CREATE_SYSFS_FILE(ACP)
+	CREATE_SYSFS_FILE(brF)
 
 	if (hdev->product == CSL_ELITE_WHEELBASE_DEVICE_ID ||
 	    hdev->product == CSL_ELITE_PS4_WHEELBASE_DEVICE_ID) {
@@ -362,6 +363,7 @@ void ftec_tuning_classdev_unregister(
 	REMOVE_SYSFS_FILE(SPR)
 	REMOVE_SYSFS_FILE(DPR)
 	REMOVE_SYSFS_FILE(ACP)
+	REMOVE_SYSFS_FILE(brF)
 
 	if (hdev->product == CSL_ELITE_WHEELBASE_DEVICE_ID ||
 	    hdev->product == CSL_ELITE_PS4_WHEELBASE_DEVICE_ID) {

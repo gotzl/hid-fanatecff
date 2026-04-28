@@ -129,7 +129,7 @@ struct ftec_drv_data {
 			 ftec_conv_noop_to, ftec_conv_noop_from, 0, 100)   \
 	FTEC_TUNING_ATTR(SHO, 0x05, "Wheel Vibration Motor",               \
 			 ftec_conv_times_ten, ftec_conv_div_ten, 0, 100)   \
-	FTEC_TUNING_ATTR(BLI, 0x06, "Break Level Indicator",               \
+	FTEC_TUNING_ATTR(BLI, 0x06, "Brake Level Indicator",               \
 			 ftec_conv_noop_to, ftec_conv_noop_from, 0, 101)   \
 	FTEC_TUNING_ATTR(FFS, 0x07, "Force Feedback Scaling",              \
 			 ftec_conv_noop_to, ftec_conv_noop_from, 0, 1)     \
@@ -145,6 +145,8 @@ struct ftec_drv_data {
 			 ftec_conv_noop_from, 0, 100)                      \
 	FTEC_TUNING_ATTR(NFR, 0x0e, "Natural Friction", ftec_conv_noop_to, \
 			 ftec_conv_noop_from, 0, 100)                      \
+	FTEC_TUNING_ATTR(brF, 0x10, "Brake Force (load-cell)",             \
+			 ftec_conv_noop_to, ftec_conv_steps_ten, 0, 100)   \
 	FTEC_TUNING_ATTR(FEI, 0x11, "Force Effect Intensity",              \
 			 ftec_conv_noop_to, ftec_conv_steps_ten, 0, 100)   \
 	FTEC_TUNING_ATTR(ACP, 0x13, "Analogue Paddles", ftec_conv_noop_to, \
