@@ -25,6 +25,13 @@ module_param(init_range, int, 0);
 int enable_module_init_led = 0;
 module_param(enable_module_init_led, int, 0);
 
+// parameter to enable detailed raw-event logging
+unsigned long debug_raw_event = 0;
+module_param(debug_raw_event, ulong, 0);
+#define DEBUG_RAW_EVENT_WHEEL_REPORT  0
+#define DEBUG_RAW_EVENT_TUNING_REPORT 1
+
+
 #define DEFAULT_TIMER_PERIOD 2
 
 #define FF_EFFECT_STARTED 0
@@ -1296,10 +1303,57 @@ void ftecff_remove(struct hid_device *hdev)
 #endif
 }
 
+static void ftecff_log_raw_event(struct hid_device *hdev,
+				 struct ftec_drv_data *drv_data, u8 *data,
+				 int size)
+{
+	char buf[256];
+	char *p;
+	u8 *last;
+	int i;
+	bool has_changes = false;
+
+	if (size == FTEC_TUNING_REPORT_SIZE) {
+		if (!test_bit(DEBUG_RAW_EVENT_TUNING_REPORT, &debug_raw_event))
+			return;
+		last = drv_data->last_tuning_event;
+	} else if (size == FTEC_WHEEL_REPORT_SIZE) {
+		if (!test_bit(DEBUG_RAW_EVENT_WHEEL_REPORT, &debug_raw_event))
+			return;
+		last = drv_data->last_wheel_event;
+	} else {
+		hid_err(hdev, "invalid size %i\n", size);
+	}
+
+	p = buf;
+	p += scnprintf(p, buf + sizeof(buf) - p, "ff raw:");
+	for (i = 0; i < size; i++) {
+		p += scnprintf(p, buf + sizeof(buf) - p, " %02x%s", data[i],
+			       last[i] != data[i] ? "*" : "");
+	}
+	hid_dbg(hdev, "%s\n", buf);
+
+	p = buf;
+	for (i = 0; i < size; i++) {
+		if (last[i] != data[i]) {
+			p += scnprintf(p, buf + sizeof(buf) - p,
+				       "%s%d: %02x->%02x",
+				       has_changes ? "  " : "changed: ", i,
+				       last[i], data[i]);
+			has_changes = true;
+		}
+	}
+	if (has_changes)
+		hid_dbg(hdev, "%s\n", buf);
+	memcpy(last, data, size);
+}
+
 int ftecff_raw_event(struct hid_device *hdev, struct hid_report *report,
 		     u8 *data, int size)
 {
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hdev);
+	if (unlikely(debug_raw_event))
+		ftecff_log_raw_event(hdev, drv_data, data, size);
 	if (data[0] == 0xff && size == FTEC_TUNING_REPORT_SIZE &&
 	    data[1] == 0x03) {
 		// shift by 1 so that we can use this as the buffer when writing back to the device

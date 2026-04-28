@@ -118,6 +118,8 @@ struct ftec_drv_data {
 	u8 wheel_id;
 	u16 fw_version;
 	struct ftec_tuning_classdev tuning;
+	u8 last_tuning_event[FTEC_TUNING_REPORT_SIZE];
+	u8 last_wheel_event[FTEC_WHEEL_REPORT_SIZE];
 };
 
 #define FTEC_TUNING_ATTRS                                                  \
