@@ -1368,14 +1368,31 @@ int ftecff_raw_event(struct hid_device *hdev, struct hid_report *report,
 			kobject_uevent(&drv_data->tuning.dev->kobj,
 				       KOBJ_CHANGE);
 	} else if (data[0] == 0x01 && size == FTEC_WHEEL_REPORT_SIZE) {
-		drv_data->fw_version =
-			get_unaligned_le16(&data[FTEC_WHEEL_REPORT_SIZE - 2]);
-		// TODO: detect wheel change and react on it in some way?
-		bool changed = drv_data->wheel_id != data[0x1f];
-		drv_data->wheel_id = data[0x1f];
-		// notify userspace about value change
-		if (changed)
-			kobject_uevent(&hdev->dev.kobj, KOBJ_CHANGE);
+		if (data[30] == 0xff) {
+			// FIXME: this seems to work only with CSL Elite
+			if (data[31] == 0x04) {
+				if (data[32] == 0)
+					hid_dbg(hdev, "Nothing connected\n");
+				else {
+					if ((data[32] & 0xf))
+						hid_dbg(hdev, "Pedals connected\n");
+					if ((data[32] >> 4 & 0xf))
+						hid_dbg(hdev, "Handbrake connected\n");
+				}
+			}
+		} else {
+			drv_data->fw_version =
+				get_unaligned_le16(&data[FTEC_WHEEL_REPORT_SIZE - 2]);
+			// TODO: detect wheel change and react on it in some way?
+			u8 wheel_id = data[31];
+			// notify userspace about value change
+			if (drv_data->wheel_id != wheel_id) {
+				hid_dbg(hdev, "Wheel changed from 0x%02X to 0x%02X\n",
+						drv_data->wheel_id, wheel_id);
+				kobject_uevent(&hdev->dev.kobj, KOBJ_CHANGE);
+				drv_data->wheel_id = wheel_id;
+			}
+		}
 	}
 	return 0;
 }
