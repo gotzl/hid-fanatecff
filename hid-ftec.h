@@ -95,7 +95,6 @@ struct ftec_drv_data_client {
 	size_t rsize;
 	int opened;
 	struct ff_effect effects[40];
-	u8 current_id;
 };
 
 struct ftec_drv_data {

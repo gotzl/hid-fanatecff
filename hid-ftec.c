@@ -678,10 +678,12 @@ static int handle_pid_effect_operation(struct ftec_drv_data *drv_data,
 
 	// Handle stop operation
 	if (params->op == PID_EFFECT_OP_STOP || params->count == 0) {
-		(void)ff->playback(inputdev, effect->id, 0);
+		if (effect->id) {
+			(void)ff->playback(inputdev, effect->id, 0);
+			effect->id = 0;
+		}
 		ftec_client_report_state(drv_data->client.hdev,
-					 PID_EFFECT_STATE_STOPPED, effect->id);
-		effect->id = 0;
+					 PID_EFFECT_STATE_STOPPED, params->id);
 		return count;
 	}
 
@@ -695,10 +697,10 @@ static int handle_pid_effect_operation(struct ftec_drv_data *drv_data,
 		if (!effect->id) {
 			effect->id = params->id;
 			(void)ff->upload(inputdev, effect, NULL);
-			ftec_client_report_state(drv_data->client.hdev,
-						 PID_EFFECT_STATE_STARTED,
-						 effect->id);
 		}
+		ftec_client_report_state(drv_data->client.hdev,
+					 PID_EFFECT_STATE_STARTED,
+					 effect->id);
 	}
 
 	(void)ff->playback(inputdev, effect->id, params->count);
@@ -716,9 +718,9 @@ static int handle_pid_device_control(struct ftec_drv_data *drv_data,
 	DEBUG("device_control: %x", params->ctrl);
 
 	if (params->stop_all_effects || params->reset) {
-		DEBUG("device_control: stop and unload effects");
-		for (size_t i = 0; i < ARRAY_SIZE(drv_data->client.effects);
-		     ++i) {
+		DEBUG("device_control: stop effects%s", params->reset ? " and reset" : "");
+		size_t i;
+		for (i = 0; i < ARRAY_SIZE(drv_data->client.effects); ++i) {
 			if (drv_data->client.effects[i].id) {
 				(void)ff->playback(
 					inputdev,
@@ -727,11 +729,12 @@ static int handle_pid_device_control(struct ftec_drv_data *drv_data,
 					drv_data->client.hdev,
 					PID_EFFECT_STATE_STOPPED,
 					drv_data->client.effects[i].id);
+				drv_data->client.effects[i].id = 0;
 			}
-			memset(&drv_data->client.effects[i], 0,
-			       sizeof(struct ff_effect));
+			if (params->reset)
+				memset(&drv_data->client.effects[i], 0,
+				       sizeof(struct ff_effect));
 		}
-		drv_data->client.current_id = 0;
 	} else if (params->enable_actuators || params->disable_actuators) {
 		// nothing to do here
 	} else {
