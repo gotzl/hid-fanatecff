@@ -109,7 +109,7 @@ Games that are expected to work (tested by me and others more or less regularly)
 | ACC  | proton       |  yes(*)      |  yes       |     yes           |       |
 | ACE  | proton       |  no, crash on startup | yes | yes | |
 | AC Rally  | proton       |  no, crash on startup | yes | yes | |
-| Automobilista 2 | proton | no, crash on startup | yes | no | includes FanatecSDK but doesn't drive LEDs/display |
+| Automobilista 2 | proton | no, crash on startup | yes | yes | |
 | BeamNG.drive    | native | yes | - | - | |
 | BeamNG.drive    | proton | yes | yes | no |  |
 | DiRT 4          | proton | yes | ? | ? | |
@@ -119,6 +119,7 @@ Games that are expected to work (tested by me and others more or less regularly)
 | F1 2X           | proton | no, crash on startup | yes | yes | FFB is weak and some effects seem to be missing |
 | Forza Horizon 5 | proton | yes | yes | no | restart required after input remapping |
 | JDM             | proton | no (***) | yes | no | |
+| Le Mans Ultimate| proton | no, crash on startup | yes | yes | needs custom proton (GE-Proton10-34-LMU-hid_fixes), needs FFB set to `inverted` |
 | rFactor2        | proton | yes | yes | yes | need to set negative FFB strength |
 | Rennsport       | wine/proton | no, crash on startup | yes | yes | |
 | RRRE            | proton | yes | yes | yes | |
