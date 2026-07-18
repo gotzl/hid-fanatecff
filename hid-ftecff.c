@@ -31,6 +31,9 @@ module_param(debug_raw_event, ulong, 0);
 #define DEBUG_RAW_EVENT_WHEEL_REPORT  0
 #define DEBUG_RAW_EVENT_TUNING_REPORT 1
 
+// parameter to enable 8bit damper/inertia/friction coefficients
+int enable_highres_dynamic_effects = 0;
+module_param(enable_highres_dynamic_effects, int, 0);
 
 #define DEFAULT_TIMER_PERIOD 2
 
@@ -744,9 +747,19 @@ static void ftecff_update_slot(struct ftecff_slot *slot,
 	case FF_DAMPER:
 	case FF_INERTIA:
 	case FF_FRICTION:
-		slot->current_cmd[2] = SCALE_COEFF(parameters->k1, 4);
-		slot->current_cmd[4] = SCALE_COEFF(parameters->k2, 4);
-		slot->current_cmd[6] = SCALE_VALUE_U16(parameters->clip, 8);
+		// On DD1, the legacy 4-bit coeff (max 0x0f) was too weak to feel; an
+		// 8-bit coeff in byte 2/4 produces clear resistance. Non-zero byte 3/5
+		// caused oscillation instead of damping, so keep them zero. Applied to
+		// highres bases; other models untested.
+		if (enable_highres_dynamic_effects) {
+			slot->current_cmd[2] = SCALE_COEFF(parameters->k1, 8);
+			slot->current_cmd[4] = SCALE_COEFF(parameters->k2, 8);
+			slot->current_cmd[6] = SCALE_VALUE_U16(parameters->clip, 8);
+		} else {
+			slot->current_cmd[2] = SCALE_COEFF(parameters->k1, 4);
+			slot->current_cmd[4] = SCALE_COEFF(parameters->k2, 4);
+			slot->current_cmd[6] = SCALE_VALUE_U16(parameters->clip, 8);
+		}
 		break;
 	}
 
