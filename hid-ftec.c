@@ -589,8 +589,9 @@ handle_pid_set_periodic(struct ftec_drv_data *drv_data, struct hid_device *hdev,
 	      params->period, params->magnitude, params->offset, params->phase);
 
 	effect->u.periodic.period = params->period == 0xffff ? 0 : params->period;
-	// NOTE: some games abuse periodic to actually send constant force
-	if (effect->u.periodic.period != 0) {
+	// NOTE: some games abuse periodic to send constant force. gMotor/ISI sims (GTR2)
+	// use a zero-magnitude Sine with the force in the DC offset -> route to constant.
+	if (effect->u.periodic.period != 0 && params->magnitude != 0) {
 		effect->u.periodic.magnitude = params->magnitude;
 		effect->u.periodic.offset = params->offset;
 		effect->u.periodic.phase = 0x10000ULL * params->phase / 360;
