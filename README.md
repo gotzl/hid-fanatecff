@@ -137,15 +137,17 @@ In case of the latter, the `hidraw-FanatecSDK` column denotes if the FanatecSDK 
 
 Advanced functions of wheels/bases are available via sysfs. Generally, these files should be writable by users in the `games` group. Base sysfs path:
 
-`/sys/module/hid_fanatec/drivers/hid:fanatec/0003:0EB7:<PID>.*/`
+`/sys/module/hid_fanatec/drivers/hid:fanatec/0003:0EB7:<PID>.<ID>/`
+
+Note: Every wheel registers two IDs. Only the first ID points to the real device.
 
 
 ### Common
 
 * Set/get range: echo number in degrees to `range`
-* Get id of mounted wheel: `wheel_id`
-* Tuning menu (experimental): `tuning_menu/*` 
-  * Get/set 'standard'/'advanced' mode: `andvanced_mode`
+* Get id of mounted wheel: `wheel_id` (16bit, e.g. `0x2102` for ClubSport F1 IS)
+* Tuning menu (experimental): `ftec_tuning/*` 
+  * Get/set 'standard'/'advanced' mode: `advanced_mode`
   * Get/set tuning menu slot: echo number into `SLOT`
   * Reset all tuning sets by echoing anything into `RESET`
   * Values get/set: `BLI DPR DRI FEI FF FOR SEN SHO SPR ...` (files depend on wheel-base)
@@ -157,15 +159,32 @@ Advanced functions of wheels/bases are available via sysfs. Generally, these fil
     * `2` `CH`: Clutch / Handbrake
     * `3` `Bt`: Brake / Throttle
     * `4` `AnA`: Mappable analog axes, shared and interferes with analog ministick if present
+* Display: echo string to `display` (empty string turns display off)
+
+### Wheel rims (experimental)
+
+Wheel-rim dependent functions are exposed on a separate class device, created when a
+supported wheel is plugged in and removed when it is unplugged. Note: Some wheel movement
+may be required to create the directory:
+* `ftec_wheel/0003:0EB7:<PID>.<ID>/*`, also
+* `/sys/class/ftec_wheel/0003:0EB7:<PID>.<ID>/`
+
+* `name`: human-readable wheel rim name
+* Single-color rim LEDs: `<hiddev>:<wheel_id>:RPM<n>/brightness` (0/1)
+* Multicolor (RGB) rim LEDs: `<hiddev>:<wheel_id>:RGB:RPM<n>/` with `multi_intensity`, `red`, `green`, `blue`
+  * `RPM1..9`: LED strip above the display
+  * `RFLAG1..3` / `LFLAG1..3`: flag LEDs left/right of the display
+
+Supported rims:
+* CSL Steering Wheel P1 V2 / BMW — 1 RGB LED
+* CSL Elite Steering Wheel WRC — 1 RGB LED
+* ClubSport Steering Wheel F1 IS — 9 single-color RPM LEDs
+* ClubSport Steering Wheel Formula V2 — 9 RGB RPM LEDs + 6 RGB flag LEDs
+* Podium Button Module Endurance — 9 RGB RPM LEDs + 6 RGB flag LEDs
 
 ### CSL Elite Base
 
-* RPM LEDs: `leds/0003:0EB7:0005.*::RPMx/brightness` (x from 1 to 9)
-
-### ClubSport Forumla1 wheel
-
-* RPM LEDs (combined with base)
-* Display: `display` (negative value turns display off)
+* RPM LEDs: `leds/<hiddev>::RPM<n>/brightness` (n from 1 to 9)
 
 ### CSL Elite pedals
 
