@@ -21,16 +21,11 @@
 int init_range = 0;
 module_param(init_range, int, 0);
 
-// parameter to enable an LED indicating that the module is loaded
-int enable_module_init_led = 0;
-module_param(enable_module_init_led, int, 0);
-
 // parameter to enable detailed raw-event logging
 unsigned long debug_raw_event = 0;
 module_param(debug_raw_event, ulong, 0);
-#define DEBUG_RAW_EVENT_WHEEL_REPORT  0
+#define DEBUG_RAW_EVENT_WHEEL_REPORT 0
 #define DEBUG_RAW_EVENT_TUNING_REPORT 1
-
 
 #define DEFAULT_TIMER_PERIOD 2
 
@@ -177,7 +172,7 @@ static u8 seg_bits(u8 value, bool point)
 	return point ? segbits[num_index] + segbits[10] : segbits[num_index];
 }
 
-static void send_report_request_to_device(struct ftec_drv_data *drv_data)
+void send_report_request_to_device(struct ftec_drv_data *drv_data)
 {
 	struct hid_device *hdev = drv_data->hid;
 	struct hid_report *report = drv_data->report;
@@ -307,7 +302,7 @@ static ssize_t ftec_wheel_show(struct device *dev,
 			       struct device_attribute *attr, char *buf)
 {
 	struct ftec_drv_data *drv_data = hid_get_drvdata(to_hid_device(dev));
-	return scnprintf(buf, PAGE_SIZE, "0x%02x\n", drv_data->wheel_id);
+	return scnprintf(buf, PAGE_SIZE, "0x%04x\n", drv_data->wheel_id);
 }
 static DEVICE_ATTR(wheel_id, S_IRUSR | S_IRGRP | S_IROTH, ftec_wheel_show,
 		   NULL);
@@ -390,14 +385,11 @@ static ssize_t ftec_set_display(struct device *dev,
 static DEVICE_ATTR(display, S_IWUSR | S_IWGRP, NULL, ftec_set_display);
 
 #if IS_REACHABLE(CONFIG_LEDS_CLASS)
-static void ftec_set_leds(struct hid_device *hid, u16 leds)
+static void ftec_set_leds_wheelbase(struct hid_device *hid, u16 leds)
 {
 	struct ftec_drv_data *drv_data;
 	unsigned long flags;
 	s32 *value;
-	u16 _leds = 0;
-	int i;
-
 	drv_data = hid_get_drvdata(hid);
 	if (!drv_data) {
 		hid_err(hid, "Private driver data not found!\n");
@@ -406,37 +398,13 @@ static void ftec_set_leds(struct hid_device *hid, u16 leds)
 
 	spin_lock_irqsave(&drv_data->report_lock, flags);
 
-	if (drv_data->quirks & FTEC_WHEELBASE_LEDS) {
-		// dbg_hid(" ... set_leds base %04X\n", leds);
-
-		value = drv_data->report->field[0]->value;
-
-		value[0] = 0xf8;
-		value[1] = 0x13;
-		value[2] = leds & 0xff;
-		value[3] = 0x00;
-		value[4] = 0x00;
-		value[5] = 0x00;
-		value[6] = 0x00;
-
-		send_report_request_to_device(drv_data);
-	}
-
-	// reshuffle, since first led is highest bit
-	for (i = 0; i < LEDS; i++) {
-		if (leds >> i & 1)
-			_leds |= 1 << (LEDS - i - 1);
-	}
-
-	// dbg_hid(" ... set_leds wheel %04X\n", _leds);
-
 	value = drv_data->report->field[0]->value;
 
 	value[0] = 0xf8;
-	value[1] = 0x09;
-	value[2] = 0x08;
-	value[3] = (_leds >> 8) & 0xff;
-	value[4] = _leds & 0xff;
+	value[1] = 0x13;
+	value[2] = leds & 0xff;
+	value[3] = 0x00;
+	value[4] = 0x00;
 	value[5] = 0x00;
 	value[6] = 0x00;
 
@@ -450,26 +418,16 @@ static void ftec_led_set_brightness(struct led_classdev *led_cdev,
 	struct device *dev = led_cdev->dev->parent;
 	struct hid_device *hid = to_hid_device(dev);
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hid);
-	int i, state = 0;
 
 	if (!drv_data) {
 		hid_err(hid, "Device data not found.");
 		return;
 	}
 
-	for (i = 0; i < LEDS; i++) {
-		if (led_cdev != drv_data->led[i])
-			continue;
-		state = (drv_data->led_state >> i) & 1;
-		if (value == LED_OFF && state) {
-			drv_data->led_state &= ~(1 << i);
-			ftec_set_leds(hid, drv_data->led_state);
-		} else if (value != LED_OFF && !state) {
-			drv_data->led_state |= 1 << i;
-			ftec_set_leds(hid, drv_data->led_state);
-		}
-		break;
-	}
+	drv_data->led_state =
+		_ftec_led_update_state(led_cdev, value, drv_data->led,
+				       LEDS_WHEELBASE, drv_data->led_state);
+	ftec_set_leds_wheelbase(hid, drv_data->led_state);
 }
 
 static enum led_brightness
@@ -485,7 +443,7 @@ ftec_led_get_brightness(struct led_classdev *led_cdev)
 		return LED_OFF;
 	}
 
-	for (i = 0; i < LEDS; i++)
+	for (i = 0; i < LEDS_WHEELBASE; i++)
 		if (led_cdev == drv_data->led[i]) {
 			value = (drv_data->led_state >> i) & 1;
 			break;
@@ -511,30 +469,13 @@ static int ftec_init_led(struct hid_device *hid)
 		return -1;
 	}
 
-	if (enable_module_init_led) {
-		// wheel LED initialization sequence
-		// not sure what's needed
-		s32 *value;
-		value = drv_data->report->field[0]->value;
-
-		value[0] = 0xf8;
-		value[1] = 0x09;
-		value[2] = 0x08;
-		value[3] = 0x01; // set green led to indicate driver is loaded
-		value[4] = 0x00;
-		value[5] = 0x00;
-		value[6] = 0x00;
-
-		send_report_request_to_device(drv_data);
-	}
-
 	drv_data->led_state = 0;
-	for (j = 0; j < LEDS; j++)
+	for (j = 0; j < LEDS_WHEELBASE; j++)
 		drv_data->led[j] = NULL;
 
 	name_sz = strlen(dev_name(&hid->dev)) + 8;
 
-	for (j = 0; j < LEDS; j++) {
+	for (j = 0; j < LEDS_WHEELBASE; j++) {
 		led = kzalloc(sizeof(struct led_classdev) + name_sz,
 			      GFP_KERNEL);
 		if (!led) {
@@ -559,7 +500,7 @@ static int ftec_init_led(struct hid_device *hid)
 				j);
 err_leds:
 			/* Deregister LEDs (if any) */
-			for (j = 0; j < LEDS; j++) {
+			for (j = 0; j < LEDS_WHEELBASE; j++) {
 				led = drv_data->led[j];
 				drv_data->led[j] = NULL;
 				if (!led)
@@ -1152,6 +1093,24 @@ static void ftecff_destroy(struct ff_device *ff)
 {
 }
 
+static void ftec_register_wheel_handler(struct work_struct *work)
+{
+	struct ftec_drv_data *drv_data =
+		container_of(work, struct ftec_drv_data, wheel_work);
+	struct hid_device *hdev = drv_data->hid;
+	if (drv_data->wheel.wheel) {
+		if (drv_data->wheel.wheel->id == drv_data->wheel_id)
+			return;
+		ftec_wheel_classdev_unregister(&drv_data->wheel);
+	}
+	if (drv_data->wheel_id)
+		ftec_wheel_classdev_register(&hdev->dev, &drv_data->wheel,
+					     drv_data->wheel_id);
+	// notify userspace about value change
+	if (!(IS_ERR_OR_NULL(drv_data->wheel.dev)))
+		kobject_uevent(&hdev->dev.kobj, KOBJ_CHANGE);
+}
+
 int ftecff_init(struct hid_device *hdev)
 {
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hdev);
@@ -1181,6 +1140,7 @@ int ftecff_init(struct hid_device *hdev)
 	/* init sequence */
 	{
 		/* tuning menu initialization? */
+		/*
 		if (drv_data->quirks & FTEC_TUNING_MENU) {
 			u8 buf[] = {
 				0xff, 0x08, 0x01, 0xff, 0x0, 0x0, 0x0, 0x0
@@ -1194,6 +1154,7 @@ int ftecff_init(struct hid_device *hdev)
 			buf[2] = 0x02;
 			ret = hid_hw_output_report(hdev, &buf[0], 8);
 		}
+		*/
 
 		/* common initialization? */
 		spin_lock_irqsave(&drv_data->report_lock, flags);
@@ -1244,12 +1205,14 @@ int ftecff_init(struct hid_device *hdev)
 	}
 
 #if IS_REACHABLE(CONFIG_LEDS_CLASS)
-	if (ftec_init_led(hdev))
-		hid_err(hdev,
-			"LED init failed\n"); /* Let the driver continue without LEDs */
+	if (drv_data->quirks & FTEC_WHEELBASE_LEDS)
+		if (ftec_init_led(hdev))
+			hid_err(hdev,
+				"LED init failed\n"); /* Let the driver continue without LEDs */
 #endif
 
 	drv_data->effects_used = 0;
+	drv_data->wheel.wheel = NULL;
 
 	ftecff_init_slots(drv_data);
 	spin_lock_init(&drv_data->timer_lock);
@@ -1262,6 +1225,8 @@ int ftecff_init(struct hid_device *hdev)
 		      HRTIMER_MODE_REL);
 #endif
 	hid_info(hdev, "Hires timer: period = %d ms", timer_msecs);
+
+	INIT_WORK(&drv_data->wheel_work, ftec_register_wheel_handler);
 
 	return 0;
 }
@@ -1285,13 +1250,18 @@ void ftecff_remove(struct hid_device *hdev)
 		ftec_tuning_classdev_unregister(&drv_data->tuning);
 	}
 
+	cancel_work_sync(&drv_data->wheel_work);
+	if (drv_data->wheel.wheel) {
+		ftec_wheel_classdev_unregister(&drv_data->wheel);
+	}
+
 #if IS_REACHABLE(CONFIG_LEDS_CLASS)
 	{
 		int j;
 		struct led_classdev *led;
 
 		/* Deregister LEDs (if any) */
-		for (j = 0; j < LEDS; j++) {
+		for (j = 0; j < LEDS_WHEELBASE; j++) {
 			led = drv_data->led[j];
 			drv_data->led[j] = NULL;
 			if (!led)
@@ -1375,22 +1345,25 @@ int ftecff_raw_event(struct hid_device *hdev, struct hid_report *report,
 					hid_dbg(hdev, "Nothing connected\n");
 				else {
 					if ((data[32] & 0xf))
-						hid_dbg(hdev, "Pedals connected\n");
+						hid_dbg(hdev,
+							"Pedals connected\n");
 					if ((data[32] >> 4 & 0xf))
-						hid_dbg(hdev, "Handbrake connected\n");
+						hid_dbg(hdev,
+							"Handbrake connected\n");
 				}
 			}
 		} else {
-			drv_data->fw_version =
-				get_unaligned_le16(&data[FTEC_WHEEL_REPORT_SIZE - 2]);
+			drv_data->fw_version = get_unaligned_le16(
+				&data[FTEC_WHEEL_REPORT_SIZE - 2]);
 			// TODO: detect wheel change and react on it in some way?
-			u8 wheel_id = data[31];
-			// notify userspace about value change
+			u16 wheel_id = get_unaligned_le16(
+				&data[FTEC_WHEEL_REPORT_SIZE - 4]);
 			if (drv_data->wheel_id != wheel_id) {
-				hid_dbg(hdev, "Wheel changed from 0x%02X to 0x%02X\n",
-						drv_data->wheel_id, wheel_id);
-				kobject_uevent(&hdev->dev.kobj, KOBJ_CHANGE);
+				hid_dbg(hdev,
+					"Wheel changed from 0x%04X to 0x%04X\n",
+					drv_data->wheel_id, wheel_id);
 				drv_data->wheel_id = wheel_id;
+				schedule_work(&drv_data->wheel_work);
 			}
 		}
 	}
