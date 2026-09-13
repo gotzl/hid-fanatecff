@@ -11,3 +11,12 @@
 modules.order
 Module.symvers
 Mkfile.old
+
+# clangd
+.cache/
+.clang-format
+.clangd
+
+# local dirs
+data/
+tests/
