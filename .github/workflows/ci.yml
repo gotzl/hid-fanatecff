@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch: {}
+
+jobs:
+  lint-markdown:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Markdown lint (super-linter)
+        uses: github/super-linter@v4
+        env:
+          VALIDATE_MARKDOWN: true
+          VALIDATE_ALL_CODEBASE: false
+          FILTER_REGEX_INCLUDE: '^(README.md|.*\\.md)$'
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        config: [default, no_leds_class, no_leds_class_multicolor]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          # try to install headers matching the running kernel first
+          KVER=$(uname -r)
+          sudo apt-get install -y linux-headers-${KVER} || \
+            sudo apt-get install -y linux-headers-generic || true
+          sudo apt-get install -y build-essential make gcc
+
+      - name: Check kernel configuration
+        run: |
+          KERNEL_CONFIG="/boot/config-$(uname -r)"
+          grep -E "^CONFIG_LEDS_CLASS=[ym]$" "$KERNEL_CONFIG"
+          # TODO: seems actions runner kernel has this config disabled ...
+          # grep -E "^CONFIG_LEDS_CLASS_MULTICOLOR=[ym]$" "$KERNEL_CONFIG"
+
+      - name: Undefine kernel config
+        id: undef
+        run: |
+          case "${{ matrix.config }}" in
+            no_leds_class)
+              UNDEF="LEDS_CLASS"
+              ;;
+            no_leds_class_multicolor)
+              UNDEF="LEDS_CLASS_MULTICOLOR"
+              ;;
+            default)
+              exit 0
+              ;;
+          esac
+          sed -i "/#include <linux\/module.h>/a #undef CONFIG_"${UNDEF}"\n#undef CONFIG_${UNDEF}_MODULE\n" hid-ftec.h
+
+      - name: Build kernel module
+        run: |
+          make
+
+      - name: Clean
+        run: make clean
