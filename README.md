@@ -239,7 +239,7 @@ Note: You'll have to re-map all your Buttons afterwards!
 
 ## Contact
 
-If you have an issue, feature request or a general question, feel free to open a ticket on GitHub or reach out on [pitcrew.gg](https://discord.pitcrew.gg/).
+If you have an issue, feature request or a general question, feel free to open a ticket on GitHub or reach out on the [PitCrew Discord channel](http://discord.pitcrew.gg/).
 
 ## Disclaimer
 
