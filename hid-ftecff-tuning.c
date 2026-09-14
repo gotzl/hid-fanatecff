@@ -273,9 +273,7 @@ static DEVICE_ATTR(advanced_mode,
 		   ftec_tuning_advanced_mode_show,
 		   ftec_tuning_advanced_mode_store);
 
-static struct class ftec_tuning_class = {
-	.name = "ftec_tuning",
-};
+struct class *ftec_tuning_class;
 
 int ftec_tuning_classdev_register(struct device *parent,
 				  struct ftec_tuning_classdev *ftec_tuning_cdev)
@@ -283,12 +281,13 @@ int ftec_tuning_classdev_register(struct device *parent,
 	struct hid_device *hdev = to_hid_device(parent);
 	int ret;
 
-	ret = class_register(&ftec_tuning_class);
-	if (ret)
-		return 0;
-
-	ftec_tuning_cdev->dev = device_create(&ftec_tuning_class, parent, 0,
+	ftec_tuning_cdev->dev = device_create(ftec_tuning_class, parent, 0,
 					      NULL, "%s", dev_name(&hdev->dev));
+	if (IS_ERR(ftec_tuning_cdev->dev)) {
+		hid_err(hdev, "error creating ftec_tuning device\n");
+		ftec_tuning_cdev->dev = NULL;
+		return -1;
+	}
 
 #define CREATE_SYSFS_FILE(name)                                                  \
 	ret = device_create_file(ftec_tuning_cdev->dev, &dev_attr_##name);       \
@@ -391,5 +390,4 @@ void ftec_tuning_classdev_unregister(
 	}
 
 	device_unregister(ftec_tuning_cdev->dev);
-	class_unregister(&ftec_tuning_class);
 }

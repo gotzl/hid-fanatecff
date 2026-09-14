@@ -1171,24 +1171,42 @@ static struct hid_driver fanatec_driver = {
 	.remove = ftec_remove,
 	.raw_event = ftec_raw_event,
 };
+
+static struct class * _class_create(const char * name)
+{
+	struct class* _class;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
+	_class = class_create(name);
+#else
+	ftec_wheel_class = class_create(THIS_MODULE, name);
+#endif
+	return _class;
+
+}
+
 static int __init fanatec_module_init(void)
 {
 	int ret;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
-	ftec_wheel_class = class_create("ftec_wheel");
-#else
-	ftec_wheel_class = class_create(THIS_MODULE, "ftec_wheel");
-#endif
+	if (IS_ERR(ftec_tuning_class = _class_create("ftec_tuning"))) {
+		ret = PTR_ERR(ftec_tuning_class);
+		ftec_tuning_class = NULL;
+		return ret;
+	}
 
-	if (IS_ERR(ftec_wheel_class)) {
+	if (IS_ERR(ftec_wheel_class = _class_create("ftec_wheel"))) {
 		ret = PTR_ERR(ftec_wheel_class);
+		class_destroy(ftec_tuning_class);
+		ftec_tuning_class = NULL;
 		ftec_wheel_class = NULL;
 		return ret;
 	}
 
 	if ((ret = hid_register_driver(&fanatec_driver))) {
+		class_destroy(ftec_tuning_class);
 		class_destroy(ftec_wheel_class);
+		ftec_tuning_class = NULL;
 		ftec_wheel_class = NULL;
 	}
 	return ret;
@@ -1197,9 +1215,12 @@ static int __init fanatec_module_init(void)
 static void __exit fanatec_module_exit(void)
 {
 	hid_unregister_driver(&fanatec_driver);
+	if (ftec_tuning_class)
+		class_destroy(ftec_tuning_class);
 	if (ftec_wheel_class)
 		class_destroy(ftec_wheel_class);
 	ftec_wheel_class = NULL;
+	ftec_tuning_class = NULL;
 }
 
 module_init(fanatec_module_init);

@@ -197,6 +197,7 @@ void ftecff_remove(struct hid_device *);
 int ftecff_raw_event(struct hid_device *, struct hid_report *, u8 *, int);
 void send_report_request_to_device(struct ftec_drv_data *);
 
+extern struct class *ftec_tuning_class;
 extern struct class *ftec_wheel_class;
 
 int ftec_tuning_classdev_register(struct device *,
