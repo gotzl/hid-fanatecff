@@ -99,6 +99,12 @@ The Proton wine fork maintains a hardcoded list of devices for which HIDRAW is e
 Prior versions of Proton will fall back to the Linux libinput/SDL method.
 To force using libinput/SDL set `PROTON_DISABLE_HIDRAW=1 %command%` as launch-option.
 
+#### FullForce and improved LEDs (FWFilterUsb)
+
+The Fanatec SDK needs to access the `fwfilterusb.sys` driver for some functionallity like `FullForce` and correct RGB LED behavior.   
+For wine, the [fwfilterusb-wine](https://github.com/gotzl/fwfilterusb-wine) project was created, which emulates `fwfilterusb.sys` as a Wine driver.
+It can be installed in a games `WINEPREFIX` with the installer script povided by the project. See the README of the project for further details.
+
 ## List of compatible games
 
 Games that are expected to work (tested by me and others more or less regularly):
