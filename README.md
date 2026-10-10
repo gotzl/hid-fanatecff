@@ -1,5 +1,31 @@
 # Linux kernel driver that aims to add support for FANATEC devices
 
+## Table of Contents
+- [Quick Start](#quick-start)
+- [Known devices](#known-devices)
+- [Installation](#installation)
+- [Implementation](#implementation)
+- [List of compatible games](#list-of-compatible-games)
+- [Device specific](#device-specific)
+- [Planned](#planned)
+- [Troubleshooting](#troubleshooting)
+- [Contact](#contact)
+- [Disclaimer](#disclaimer)
+
+## Quick Start
+
+For full features - FFB, Fanatec SDK, FullForce, LEDs/display:
+
+1. Set base to PC mode (red LED) and install driver:
+   `sudo ./install.sh`, or `make && sudo make install`; then
+   `sudo udevadm control --reload-rules && sudo udevadm trigger`
+   See [Installation](#installation).
+2. Use Proton >= 10.0-2 so HIDRAW is enabled for Fanatec wheel bases by default.
+   See [Implementation](#implementation).
+3. Per game prefix, install FullForce / SDK-LED shim:
+   `./setup_ftec_fwfilter.sh --proton <APPID>`, use `--rim 9rgb|single-rgb|9mono` to match your rim.
+   See [Implementation](#implementation) and [fwfilterusb-wine](https://github.com/gotzl/fwfilterusb-wine).
+
 ## Known devices
 
 The Wheel Base should be set to 'PC mode' for the driver to be selected (CSL Elite and CSL DD: red LED)
