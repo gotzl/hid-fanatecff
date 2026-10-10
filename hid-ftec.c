@@ -18,6 +18,11 @@ module_param(hidraw_pid, bool, 0);
 // use custom button mapping
 bool custom_button_mapping = false;
 module_param(custom_button_mapping, bool, 0);
+// repaint the SDK rev-limiter blink palette (yellow/red/blue) to all blue
+bool rev_shift_blue = true;
+module_param(rev_shift_blue, bool, 0644);
+MODULE_PARM_DESC(rev_shift_blue,
+		 "Rewrite the SDK rev-limiter blink-ON packet to all blue");
 
 #define DEBUG(...) pr_debug("ftec: " __VA_ARGS__)
 
@@ -748,6 +753,40 @@ static int handle_pid_device_control(struct ftec_drv_data *drv_data,
 	return count;
 }
 
+// Rev-LED protocol (report 255, 64 bytes): FF 01 00 + 13 row0 bytes +
+// 16 row1 bytes + 32 zero bytes. Row0/row1 hold BGR565 color pairs, one
+// per LED group (07E0 green, 07FF yellow, 001F red, F800 blue).
+#define FTEC_REV_REPORT_ID 255
+#define FTEC_REV_REPORT_SIZE 64
+#define FTEC_REV_CMD0 0x01
+#define FTEC_REV_CMD1 0x00
+
+/* The Fanatec SDK hardcodes LEDs 0-2 yellow, 3-5 red, 6-8 blue when the
+ * game switches all rev LEDs on, so the rev limiter blinks yellow/red/blue
+ * instead of all blue. Match that exact blink-ON packet and repaint all blue.
+ */
+static void ftec_fix_rev_shift_blink(u8 *buf, size_t count)
+{
+	static const u8 blink_on[12] = {
+		0x07, 0xff, 0x07, 0xff, 0x07, 0xff,
+		0x00, 0x1f, 0x00, 0x1f, 0x00, 0x1f,
+	};
+	int i;
+
+	if (!rev_shift_blue)
+		return;
+	if (count < 3 + sizeof(blink_on) || buf[0] != FTEC_REV_REPORT_ID ||
+	    buf[1] != FTEC_REV_CMD0 || buf[2] != FTEC_REV_CMD1)
+		return;
+	if (memcmp(&buf[3], blink_on, sizeof(blink_on)))
+		return;
+
+	for (i = 0; i < (int)sizeof(blink_on); i += 2) {
+		buf[3 + i] = 0xf8;
+		buf[3 + i + 1] = 0x00;
+	}
+}
+
 static int ftec_client_ll_raw_request(struct hid_device *hdev,
 				      unsigned char reportnum, u8 *buf,
 				      size_t count, unsigned char report_type,
@@ -761,6 +800,8 @@ static int ftec_client_ll_raw_request(struct hid_device *hdev,
 
 	if (reportnum <= 2 || reportnum == 255) {
 		// forward these reports directly to the device
+		if (reportnum == FTEC_REV_REPORT_ID)
+			ftec_fix_rev_shift_blink(buf, count);
 		return hid_hw_output_report(drv_data->hid, buf, count);
 	}
 
