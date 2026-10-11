@@ -61,9 +61,9 @@ module_param(profile, int, 0660);
 MODULE_PARM_DESC(profile, "Enable profile debug messages.");
 
 static const signed short ftecff_wheel_effects[] = {
-	FF_CONSTANT, FF_SPRING,	  FF_DAMPER,   FF_INERTIA,
-	FF_FRICTION, FF_PERIODIC, FF_SINE,     FF_SQUARE,
-	FF_TRIANGLE, FF_SAW_UP,	  FF_SAW_DOWN, -1
+	FF_CONSTANT, FF_RAMP,	  FF_SPRING, FF_DAMPER, FF_INERTIA,
+	FF_FRICTION, FF_PERIODIC, FF_SINE,   FF_SQUARE, FF_TRIANGLE,
+	FF_SAW_UP,   FF_SAW_DOWN, -1
 };
 
 /* This is realy weird... if i put a value >0x80 into the report,
@@ -591,16 +591,6 @@ ftecff_update_state(struct ftecff_effect_state *state, const unsigned long now)
 
 	state->envelope = ftecff_effect_envelope(effect);
 
-	state->slope = 0;
-	if (effect->type == FF_RAMP && effect->replay.length) {
-		state->slope =
-			((effect->u.ramp.end_level - effect->u.ramp.start_level)
-			 << 16) /
-			(effect->replay.length -
-			 state->envelope->attack_length -
-			 state->envelope->fade_length);
-	}
-
 	if (!test_bit(FF_EFFECT_PLAYING, &state->flags) &&
 	    time_after_eq(now, state->play_at) &&
 	    (effect->replay.length == 0 || time_before(now, state->stop_at))) {
@@ -627,8 +617,6 @@ static void ftecff_update_slot(struct ftecff_slot *slot,
 	unsigned short i;
 	int d1;
 	int d2;
-	int s1;
-	int s2;
 
 	memcpy(original_cmd, slot->current_cmd, sizeof(original_cmd));
 	memset(slot->current_cmd, 0, sizeof(slot->current_cmd));
@@ -678,8 +666,6 @@ static void ftecff_update_slot(struct ftecff_slot *slot,
 	case FF_SPRING:
 		d1 = SCALE_VALUE_U16(((parameters->d1) + 0x8000) & 0xffff, 11);
 		d2 = SCALE_VALUE_U16(((parameters->d2) + 0x8000) & 0xffff, 11);
-		s1 = parameters->k1 < 0;
-		s2 = parameters->k2 < 0;
 		slot->current_cmd[2] = d1 >> 3;
 		slot->current_cmd[3] = d2 >> 3;
 		slot->current_cmd[4] = (SCALE_COEFF(parameters->k2, 4) << 4) +
@@ -757,6 +743,51 @@ ftecff_calculate_constant(struct ftecff_effect_state *state)
 		t = state->time_playing - state->effect.replay.length +
 		    state->envelope->fade_length;
 		if (t > 0) {
+			level_sign = level < 0 ? -1 : 1;
+			d = level - level_sign * state->envelope->fade_level;
+			level = level - d * t / state->envelope->fade_length;
+		}
+	}
+
+	return state->direction_gain * level / 0x7fff;
+}
+
+static __always_inline int
+ftecff_calculate_ramp(struct ftecff_effect_state *state)
+{
+	unsigned long length = state->effect.replay.length;
+	unsigned long time_playing = state->time_playing;
+	int level;
+	int level_sign;
+	long d, t;
+
+	/* Linear interpolation between start and end level. A ramp with
+	 * infinite length has no defined end point, so hold the start level.
+	 */
+	if (length == 0) {
+		level = state->effect.u.ramp.start_level;
+	} else {
+		if (time_playing > length)
+			time_playing = length;
+		level = state->effect.u.ramp.start_level +
+			(long)(state->effect.u.ramp.end_level -
+			       state->effect.u.ramp.start_level) *
+				time_playing / length;
+	}
+
+	if (state->time_playing < state->envelope->attack_length) {
+		level_sign = level < 0 ? -1 : 1;
+		d = level - level_sign * state->envelope->attack_level;
+		level = level_sign * state->envelope->attack_level +
+			d * state->time_playing /
+				state->envelope->attack_length;
+	} else if (length) {
+		t = state->time_playing - length + state->envelope->fade_length;
+		/* fade_length is checked: with no fade phase t can only be
+		 * positive past the end of the effect, which the timer loop
+		 * never passes to us (it stops the effect at stop_at first).
+		 */
+		if (t > 0 && state->envelope->fade_length) {
 			level_sign = level < 0 ? -1 : 1;
 			d = level - level_sign * state->envelope->fade_level;
 			level = level - d * t / state->envelope->fade_length;
@@ -891,6 +922,9 @@ static __always_inline int ftecff_timer(struct ftec_drv_data *drv_data)
 		switch (state->effect.type) {
 		case FF_CONSTANT:
 			parameters[0].level += ftecff_calculate_constant(state);
+			break;
+		case FF_RAMP:
+			parameters[0].level += ftecff_calculate_ramp(state);
 			break;
 		case FF_SPRING:
 			ftecff_calculate_spring(state, &parameters[1]);
@@ -1027,6 +1061,10 @@ static int ftecff_upload_effect(struct input_dev *dev, struct ff_effect *effect,
 			      effect->u.periodic.offset,
 			      effect->u.periodic.phase,
 			      effect->u.periodic.period);
+		} else if (effect->type == FF_RAMP) {
+			DEBUG("\tstart %i, end %i\n",
+			      effect->u.ramp.start_level,
+			      effect->u.ramp.end_level);
 		} else {
 			DEBUG("\tlevel %i, left_coeff %i, right_coeff %i, left_saturation %i, right_saturation %i\n",
 			      effect->u.constant.level, condition->left_coeff,

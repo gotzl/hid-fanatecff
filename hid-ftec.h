@@ -61,11 +61,7 @@ struct ftecff_effect_state {
 	unsigned int phase;
 	unsigned int phase_adj;
 	unsigned int count;
-	unsigned int cmd;
-	unsigned int cmd_start_time;
-	unsigned int cmd_start_count;
 	int direction_gain;
-	int slope;
 };
 
 struct ftecff_effect_parameters {

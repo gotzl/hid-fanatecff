@@ -644,6 +644,12 @@ static int handle_pid_set_effect(struct ftec_drv_data *drv_data,
 	if (effect->type == FF_CONSTANT) {
 		effect->u.constant.level =
 			(effect->u.constant.level * params->gain_percent) / 100;
+	} else if (effect->type == FF_RAMP) {
+		effect->u.ramp.start_level =
+			(effect->u.ramp.start_level * params->gain_percent) /
+			100;
+		effect->u.ramp.end_level =
+			(effect->u.ramp.end_level * params->gain_percent) / 100;
 	} else if (effect->type == FF_PERIODIC) {
 		effect->u.periodic.magnitude =
 			(effect->u.periodic.magnitude * params->gain_percent) /
