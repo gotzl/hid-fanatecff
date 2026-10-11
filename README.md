@@ -192,6 +192,7 @@ Note: Every wheel registers two IDs. Only the first ID points to the real device
     * `3` `Bt`: Brake / Throttle
     * `4` `AnA`: Mappable analog axes, shared and interferes with analog ministick if present
 * Display: echo string to `display` (empty string turns display off)
+  * Raw segments: echo a `0x`-prefixed hex value (e.g. `0x3F063F`) to pass three segment bytes verbatim, bypassing the ASCII map. The base forwards them to the mounted rim, so character/OLED rim displays (same segment encoding) are driven alike.
 
 ### Wheel rims (experimental)
 

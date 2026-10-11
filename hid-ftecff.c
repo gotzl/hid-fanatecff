@@ -89,6 +89,13 @@ static void fix_values(s32 *values)
       6
     4   2
       3   7
+
+ There is no standard for letters on 7 segments; k/m/v/w/x in particular
+ cannot be drawn unambiguously (diagonals, more than two verticals). The
+ patterns below follow the lowercase-biased convention of the rest of the
+ table; collisions with other glyphs (like the existing s/5, q/9, z/2) are
+ noted. Anything beyond this map can still be shown via raw segment
+ passthrough, see ftec_set_display().
 */
 static u8 segbits[42] = {
 	63, // 0
@@ -117,9 +124,9 @@ static u8 segbits[42] = {
 	118, // h
 	48, // i
 	14, // j
-	0, // k - placeholder/blank
+	116, // k: stem + middle + lower-right leg (upper arm missing)
 	56, // l
-	0, // m - placeholder/blank
+	84, // m: arches collapse to one, same as n
 	84, // n
 	92, // o
 	115, // p
@@ -128,9 +135,9 @@ static u8 segbits[42] = {
 	109, // s
 	120, // t
 	62, // u
-	0, // v - placeholder/blank
-	0, // w - placeholder/blank
-	0, // x - placeholder/blank
+	28, // v: bottom V (bits 2,3,4)
+	62, // w: double-v collapses to one, same as u
+	118, // x: diagonals not representable, same as h
 	110, // y
 	91 // z
 };
@@ -330,10 +337,24 @@ static ssize_t ftec_set_display(struct device *dev,
 	unsigned long flags;
 	s32 *value;
 	unsigned int valueIndex, bufIndex = 0;
+	/* Raw segment passthrough ("0x" prefix) vs ASCII string below. */
+	bool is_raw = count > 2 && buf[0] == '0' &&
+		      (buf[1] == 'x' || buf[1] == 'X');
+	u32 raw_val = 0;
 
-	// check the buffer size, note that in lack of points or commas, only the first 3 characters will be processed
-	if (count > 7) {
+	/* Check the buffer size: ASCII strings are limited to 3 chars
+	 * (+ points/commas, only the first 3 characters will be processed),
+	 * raw values to 3 segment bytes ("0xFFFFFF").
+	 */
+	if ((!is_raw && count > 7) || (is_raw && count > 10)) {
 		hid_err(hid, "Invalid value %s!\n", buf);
+		return -EINVAL;
+	}
+
+	/* Validate the raw value before taking the report lock. */
+	if (is_raw &&
+	    (kstrtou32(buf, 0, &raw_val) != 0 || raw_val > 0xffffff)) {
+		hid_err(hid, "Invalid raw display value %s!\n", buf);
 		return -EINVAL;
 	}
 
@@ -357,27 +378,49 @@ static ssize_t ftec_set_display(struct device *dev,
 	value[6] = 0x00;
 
 	// set each of the segments as long there is input data
-	for (valueIndex = 4; valueIndex <= 6 && bufIndex < count;
-	     valueIndex++) {
-		bool point = false;
-		// check if next char is a point or comma if not end of the string
-		if (bufIndex + 1 < count) {
-			point = buf[bufIndex + 1] == '.' ||
-				buf[bufIndex + 1] == ',';
+	if (is_raw) {
+		/*
+		 * Raw segment passthrough: a "0x"-prefixed value is split
+		 * verbatim into the three segment bytes, e.g. 0x3F063F shows
+		 * "010". Each byte is a raw segment bitmask (bit 7 = dot), so
+		 * glyphs outside the ASCII map above - custom symbols, lamp
+		 * tests, explicit dot control - can be shown as well.
+		 *
+		 * Rims have no direct HID display path (they attach to the
+		 * base via the quick release), so the wheelbase forwards these
+		 * bytes in firmware to the mounted rim: character/OLED rim
+		 * displays render the same segment encoding (cf. the
+		 * FSLedSetChar/FSLedDigit rim display commands of the Windows
+		 * driver). Raw passthrough therefore drives base and rim
+		 * displays alike, bypassing seg_bits() translation on both.
+		 * No centering is applied: byte placement is explicit.
+		 */
+		value[4] = (raw_val >> 16) & 0xff;
+		value[5] = (raw_val >> 8) & 0xff;
+		value[6] = raw_val & 0xff;
+	} else {
+		for (valueIndex = 4; valueIndex <= 6 && bufIndex < count;
+		     valueIndex++) {
+			bool point = false;
+			// check if next char is a point or comma if not end of the string
+			if (bufIndex + 1 < count) {
+				point = buf[bufIndex + 1] == '.' ||
+					buf[bufIndex + 1] == ',';
+			}
+			value[valueIndex] = seg_bits(buf[bufIndex], point);
+			// determinate next value, if a dot was encountered we need to step one index further
+			bufIndex += point ? 2 : 1;
 		}
-		value[valueIndex] = seg_bits(buf[bufIndex], point);
-		// determinate next value, if a dot was encountered we need to step one index further
-		bufIndex += point ? 2 : 1;
-	}
-	// 'center' values by shifting shorter inputs to the right
-	if (value[4] > 0x00 && value[6] == 0x00) {
-		if (value[5] == 0x00) {
-			value[5] = value[4];
-			value[4] = 0x00;
-		} else if (value[5] > 0) {
-			value[6] = value[5];
-			value[5] = value[4];
-			value[4] = 0x00;
+		// 'center' values by shifting shorter inputs to the right
+		if (value[4] > 0x00 && value[6] == 0x00) {
+			if (value[5] == 0x00) {
+				value[5] = value[4];
+				value[4] = 0x00;
+			} else if (value[5] > 0) {
+				value[6] = value[5];
+				value[5] = value[4];
+				value[4] = 0x00;
+			}
 		}
 	}
 
