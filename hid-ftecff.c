@@ -301,15 +301,26 @@ static ssize_t ftec_range_store(struct device *dev,
 static DEVICE_ATTR(range, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH,
 		   ftec_range_show, ftec_range_store);
 
-/* Export the current wheel id */
-static ssize_t ftec_wheel_show(struct device *dev,
-			       struct device_attribute *attr, char *buf)
+/* Export the rim type (rim index byte as sent by the wheel-base) */
+static ssize_t ftec_rim_type_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
 {
 	struct ftec_drv_data *drv_data = hid_get_drvdata(to_hid_device(dev));
-	return scnprintf(buf, PAGE_SIZE, "0x%04x\n", drv_data->wheel_id);
+	return scnprintf(buf, PAGE_SIZE, "%u\n", drv_data->rim_type);
 }
-static DEVICE_ATTR(wheel_id, S_IRUSR | S_IRGRP | S_IROTH, ftec_wheel_show,
+static DEVICE_ATTR(rim_type, S_IRUSR | S_IRGRP | S_IROTH, ftec_rim_type_show,
 		   NULL);
+
+/* Export the rim firmware version */
+static ssize_t ftec_fw_version_rim_show(struct device *dev,
+					struct device_attribute *attr,
+					char *buf)
+{
+	struct ftec_drv_data *drv_data = hid_get_drvdata(to_hid_device(dev));
+	return scnprintf(buf, PAGE_SIZE, "%u\n", drv_data->fw_version_rim);
+}
+static DEVICE_ATTR(fw_version_rim, S_IRUSR | S_IRGRP | S_IROTH,
+		   ftec_fw_version_rim_show, NULL);
 
 /* Export the wheel-base firmware version */
 static ssize_t ftec_fw_version_show(struct device *dev,
@@ -1112,14 +1123,11 @@ static void ftec_register_wheel_handler(struct work_struct *work)
 	struct ftec_drv_data *drv_data =
 		container_of(work, struct ftec_drv_data, wheel_work);
 	struct hid_device *hdev = drv_data->hid;
-	if (drv_data->wheel.wheel) {
-		if (drv_data->wheel.wheel->id == drv_data->wheel_id)
-			return;
+	if (drv_data->wheel.wheel)
 		ftec_wheel_classdev_unregister(&drv_data->wheel);
-	}
-	if (drv_data->wheel_id)
+	if (drv_data->rim_type)
 		ftec_wheel_classdev_register(&hdev->dev, &drv_data->wheel,
-					     drv_data->wheel_id);
+					     drv_data->rim_type);
 	// notify userspace about value change
 	if (!(IS_ERR_OR_NULL(drv_data->wheel.dev)))
 		kobject_uevent(&hdev->dev.kobj, KOBJ_CHANGE);
@@ -1211,8 +1219,9 @@ int ftecff_init(struct hid_device *hdev)
 
 	CREATE_SYSFS_FILE(display)
 	CREATE_SYSFS_FILE(range)
-	CREATE_SYSFS_FILE(wheel_id)
+	CREATE_SYSFS_FILE(rim_type)
 	CREATE_SYSFS_FILE(fw_version)
+	CREATE_SYSFS_FILE(fw_version_rim)
 
 	if (drv_data->quirks & FTEC_TUNING_MENU) {
 		ftec_tuning_classdev_register(&hdev->dev, &drv_data->tuning);
@@ -1257,8 +1266,9 @@ void ftecff_remove(struct hid_device *hdev)
 
 	REMOVE_SYSFS_FILE(display)
 	REMOVE_SYSFS_FILE(range)
-	REMOVE_SYSFS_FILE(wheel_id)
+	REMOVE_SYSFS_FILE(rim_type)
 	REMOVE_SYSFS_FILE(fw_version)
+	REMOVE_SYSFS_FILE(fw_version_rim)
 
 	if (drv_data->quirks & FTEC_TUNING_MENU) {
 		ftec_tuning_classdev_unregister(&drv_data->tuning);
@@ -1367,17 +1377,23 @@ int ftecff_raw_event(struct hid_device *hdev, struct hid_report *report,
 				}
 			}
 		} else {
+			u8 rim_type, fw_version_rim;
+
 			drv_data->fw_version = get_unaligned_le16(
 				&data[FTEC_WHEEL_REPORT_SIZE - 2]);
-			// TODO: detect wheel change and react on it in some way?
-			u16 wheel_id = get_unaligned_le16(
-				&data[FTEC_WHEEL_REPORT_SIZE - 4]);
-			if (drv_data->wheel_id != wheel_id) {
+			rim_type = data[FTEC_WHEEL_REPORT_SIZE - 4];
+			fw_version_rim = data[FTEC_WHEEL_REPORT_SIZE - 3];
+			if (drv_data->rim_type != rim_type) {
 				hid_dbg(hdev,
-					"Wheel changed from 0x%04X to 0x%04X\n",
-					drv_data->wheel_id, wheel_id);
-				drv_data->wheel_id = wheel_id;
+					"Rim changed to rim_type %u (rim fw %u)\n",
+					rim_type, fw_version_rim);
+				drv_data->rim_type = rim_type;
+				drv_data->fw_version_rim = fw_version_rim;
 				schedule_work(&drv_data->wheel_work);
+			} else if (drv_data->fw_version_rim != fw_version_rim) {
+				hid_dbg(hdev, "Rim fw changed to %u\n",
+					fw_version_rim);
+				drv_data->fw_version_rim = fw_version_rim;
 			}
 		}
 	}

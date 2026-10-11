@@ -121,7 +121,7 @@ ftec_wheel_init_multicolor(struct hid_device *hid,
 	/* FIXME: hardcoded switch bitween RPM LEDs strip above the display,
 	 * and FLAG LEDs left/right of the display, found eg on F1 steering wheels */
 	led_cdev->name = devm_kasprintf(
-		ftec_wheel_cdev->dev, GFP_KERNEL, "%s:%04x:RGB:%s%i",
+		ftec_wheel_cdev->dev, GFP_KERNEL, "%s:%02x:RGB:%s%i",
 		dev_name(&hid->dev), ftec_wheel_cdev->wheel->id,
 		i < 9 ? "RPM" : (i < 12 ? "RFLAG" : "LFLAG"),
 		i < 9 ? i + 1 : (i % 3) + 1);
@@ -249,7 +249,7 @@ static int ftec_wheel_init_led(struct hid_device *hid,
 		return -ENOMEM;
 
 	led->name = devm_kasprintf(ftec_wheel_cdev->dev, GFP_KERNEL,
-				   "%s:%04x:RPM%d", dev_name(&hid->dev),
+				   "%s:%02x:RPM%d", dev_name(&hid->dev),
 				   ftec_wheel_cdev->wheel->id, i + 1);
 	if (!led->name)
 		return -ENOMEM;
@@ -351,7 +351,7 @@ static const struct ftec_wheel wheels[] = {
 
 int ftec_wheel_classdev_register(struct device *parent,
 				 struct ftec_wheel_classdev *ftec_wheel_cdev,
-				 u16 wheel_id)
+				 u8 rim_type)
 {
 	struct hid_device *hdev = to_hid_device(parent);
 	int j;
@@ -366,14 +366,14 @@ int ftec_wheel_classdev_register(struct device *parent,
 
 	ftec_wheel_cdev->wheel = NULL;
 	for (j = 0; wheels[j].id != 0; j++) {
-		if (wheels[j].id == wheel_id) {
+		if (wheels[j].id == rim_type) {
 			ftec_wheel_cdev->wheel = &wheels[j];
 			break;
 		}
 	}
 
 	if (!ftec_wheel_cdev->wheel) {
-		hid_err(hdev, "unknown wheel_id 0x%04x\n", wheel_id);
+		hid_err(hdev, "unknown rim_type 0x%02x\n", rim_type);
 		goto err_unregister;
 	}
 

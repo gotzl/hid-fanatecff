@@ -25,14 +25,14 @@
 #define CSR_ELITE_WHEELBASE_DEVICE_ID 0x0011
 #define PORSCHE_911_WHEELBASE_DEVICE_ID 0x0197
 
-// wheels
-#define CSL_STEERING_WHEEL_P1_V2_ID 0x0008
-#define CSL_ELITE_STEERING_WHEEL_WRC_ID 0x0412
-#define CSL_ELITE_STEERING_WHEEL_MCLAREN_GT3_V2_ID 0x310b
-#define CLUBSPORT_STEERING_WHEEL_F1_IS_ID 0x2102
-#define CLUBSPORT_STEERING_WHEEL_FORMULA_V2_ID 0x000a
-// #define PODIUM_STEERING_WHEEL_PORSCHE_911_GT3_R_ID 0x0c12
-#define PODIUM_BUTTON_MODULE_ENDURANCE_ID 0x060c
+// wheels (rim index byte as sent by the wheel-base)
+#define CSL_STEERING_WHEEL_P1_V2_ID 0x08
+#define CSL_ELITE_STEERING_WHEEL_WRC_ID 0x12
+#define CSL_ELITE_STEERING_WHEEL_MCLAREN_GT3_V2_ID 0x0b
+#define CLUBSPORT_STEERING_WHEEL_F1_IS_ID 0x02
+#define CLUBSPORT_STEERING_WHEEL_FORMULA_V2_ID 0x0a
+// #define PODIUM_STEERING_WHEEL_PORSCHE_911_GT3_R_ID 0x12 /* clashes with WRC */
+#define PODIUM_BUTTON_MODULE_ENDURANCE_ID 0x0c
 
 // quirks
 #define FTEC_FF 0x001
@@ -88,7 +88,7 @@ struct ftecff_slot {
 };
 
 struct ftec_wheel {
-	u16 id;
+	u8 id;
 	char *name;
 	u8 flags;
 	u8 n_leds;
@@ -154,8 +154,9 @@ struct ftec_drv_data {
 	u16 led_state;
 	struct led_classdev *led[LEDS_WHEELBASE];
 #endif
-	u16 wheel_id;
+	u8 rim_type;
 	u16 fw_version;
+	u8 fw_version_rim;
 	struct work_struct wheel_work;
 	struct ftec_tuning_classdev tuning;
 	struct ftec_wheel_classdev wheel;
@@ -222,7 +223,7 @@ ssize_t _ftec_tuning_show(struct device *, enum ftec_tuning_attrs_enum, char *);
 ssize_t _ftec_tuning_store(struct device *, enum ftec_tuning_attrs_enum,
 			   const char *, size_t);
 int ftec_wheel_classdev_register(struct device *, struct ftec_wheel_classdev *,
-				 u16);
+				 u8);
 void ftec_wheel_classdev_unregister(struct ftec_wheel_classdev *);
 #if IS_REACHABLE(CONFIG_LEDS_CLASS)
 int _ftec_led_update_state(struct led_classdev *, enum led_brightness,
