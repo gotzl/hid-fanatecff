@@ -33,6 +33,29 @@
 // #define PODIUM_STEERING_WHEEL_PORSCHE_911_GT3_R_ID 0x12 /* clashes with WRC */
 #define PODIUM_BUTTON_MODULE_ENDURANCE_ID 0x0c
 
+// Wheel type as reported by the Fanatec SDK/Windows driver (FWFilterUsb.sys).
+// Modern wheelbases report a fixed base-family id; legacy wheelbases report a
+// three-character model code decoded from the input report.
+enum ftec_wheel_type {
+	FTEC_WHEELTYPE_PWC = 1,
+	FTEC_WHEELTYPE_PWGT3RS = 2,
+	FTEC_WHEELTYPE_PWC4 = 3,
+	FTEC_WHEELTYPE_PWTS = 4,
+	FTEC_WHEELTYPE_PWGT2 = 5,
+	FTEC_WHEELTYPE_PWGT3RSV2 = 6,
+	FTEC_WHEELTYPE_CSRE = 7,
+	FTEC_WHEELTYPE_CSR = 8,
+	// base-family ids used by modern wheelbases
+	FTEC_WHEELTYPE_CLUBSPORT_V2 = 10,
+	FTEC_WHEELTYPE_CSL_ELITE = 12,
+	FTEC_WHEELTYPE_CSL_ELITE_PS4 = 13,
+	FTEC_WHEELTYPE_CLUBSPORT_V25 = 14,
+	FTEC_WHEELTYPE_PODIUM_DD1 = 15,
+	FTEC_WHEELTYPE_PODIUM_DD2 = 16,
+	FTEC_WHEELTYPE_CSL_DD = 17,
+	FTEC_WHEELTYPE_UNKNOWN = 0x12,
+};
+
 // quirks
 #define FTEC_FF 0x001
 #define FTEC_PEDALS 0x002
@@ -140,6 +163,7 @@ struct ftec_drv_data {
 	struct led_classdev *led[LEDS_WHEELBASE];
 #endif
 	u8 rim_id;
+	u8 wheel_type;
 	u16 fw_version;
 	u8 fw_version_rim;
 	struct work_struct wheel_work;
