@@ -146,6 +146,7 @@ Note: Every wheel registers two IDs. Only the first ID points to the real device
 
 * Set/get range: echo number in degrees to `range`
 * Get rim id of mounted wheel: `rim_id` (rim index byte as sent by the wheel-base, e.g. `18` for CSL WRC)
+* Get wheel type: `wheel_type` (Fanatec SDK/Windows driver wheel-base family id)
 * Get rim firmware version: `fw_version_rim`
 * Tuning menu (experimental): `ftec_tuning/*` 
   * Get/set 'standard'/'advanced' mode: `advanced_mode`

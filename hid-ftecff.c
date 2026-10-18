@@ -311,6 +311,16 @@ static ssize_t ftec_rim_id_show(struct device *dev,
 static DEVICE_ATTR(rim_id, S_IRUSR | S_IRGRP | S_IROTH, ftec_rim_id_show,
 		   NULL);
 
+/* Export the wheel type (Fanatec SDK/Windows driver wheel-base-family id) */
+static ssize_t ftec_wheel_type_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	struct ftec_drv_data *drv_data = hid_get_drvdata(to_hid_device(dev));
+	return scnprintf(buf, PAGE_SIZE, "%u\n", drv_data->wheel_type);
+}
+static DEVICE_ATTR(wheel_type, S_IRUSR | S_IRGRP | S_IROTH,
+		   ftec_wheel_type_show, NULL);
+
 /* Export the rim firmware version */
 static ssize_t ftec_fw_version_rim_show(struct device *dev,
 					struct device_attribute *attr,
@@ -1133,6 +1143,56 @@ static void ftec_register_wheel_handler(struct work_struct *work)
 		kobject_uevent(&hdev->dev.kobj, KOBJ_CHANGE);
 }
 
+static u8 ftec_wheel_type_from_pid(u16 product)
+{
+	switch (product) {
+	case CLUBSPORT_V2_WHEELBASE_DEVICE_ID:
+		return FTEC_WHEELTYPE_CLUBSPORT_V2;
+	case CLUBSPORT_V25_WHEELBASE_DEVICE_ID:
+		return FTEC_WHEELTYPE_CLUBSPORT_V25;
+	case CSL_ELITE_WHEELBASE_DEVICE_ID:
+		return FTEC_WHEELTYPE_CSL_ELITE;
+	case CSL_ELITE_PS4_WHEELBASE_DEVICE_ID:
+		return FTEC_WHEELTYPE_CSL_ELITE_PS4;
+	case PODIUM_WHEELBASE_DD1_DEVICE_ID:
+		return FTEC_WHEELTYPE_PODIUM_DD1;
+	case PODIUM_WHEELBASE_DD2_DEVICE_ID:
+		return FTEC_WHEELTYPE_PODIUM_DD2;
+	case CSL_DD_WHEELBASE_DEVICE_ID:
+		return FTEC_WHEELTYPE_CSL_DD;
+	case CSR_ELITE_WHEELBASE_DEVICE_ID:
+	case PORSCHE_911_WHEELBASE_DEVICE_ID:
+		return FTEC_WHEELTYPE_UNKNOWN;
+	default:
+		return 0;
+	}
+}
+
+/*
+ * Decode the three-character wheel model code that legacy wheelbases send in
+ * the input report (bytes 4..6).
+ */
+static u8 ftec_wheel_type_from_legacy_report(const u8 *data)
+{
+	if (data[4] == 'P' && data[5] == 'W' && data[6] == 'C')
+		return FTEC_WHEELTYPE_PWC;
+	if (data[4] == 'P' && data[5] == 'R' && data[6] == 'S')
+		return FTEC_WHEELTYPE_PWGT3RS;
+	if (data[4] == 'P' && data[5] == 'W' && data[6] == '4')
+		return FTEC_WHEELTYPE_PWC4;
+	if (data[4] == 'P' && data[5] == 'W' && data[6] == 'S')
+		return FTEC_WHEELTYPE_PWTS;
+	if (data[4] == 'G' && data[5] == 'T' && data[6] == '2')
+		return FTEC_WHEELTYPE_PWGT2;
+	if (data[4] == 'G' && data[5] == 'V' && data[6] == '2')
+		return FTEC_WHEELTYPE_PWGT3RSV2;
+	if (data[4] == 'C' && data[5] == 'S' && data[6] == 'E')
+		return FTEC_WHEELTYPE_CSRE;
+	if (data[4] == 'C' && data[5] == 'S' && data[6] == 'R')
+		return FTEC_WHEELTYPE_CSR;
+	return FTEC_WHEELTYPE_UNKNOWN;
+}
+
 int ftecff_init(struct hid_device *hdev)
 {
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hdev);
@@ -1208,6 +1268,8 @@ int ftecff_init(struct hid_device *hdev)
 	drv_data->range = init_range > 0 ? init_range : drv_data->max_range;
 	ftec_set_range(hdev, drv_data->range);
 
+	drv_data->wheel_type = ftec_wheel_type_from_pid(hdev->product);
+
 	/* Create sysfs interface */
 #define CREATE_SYSFS_FILE(name)                                                  \
 	ret = device_create_file(&hdev->dev, &dev_attr_##name);                  \
@@ -1220,6 +1282,7 @@ int ftecff_init(struct hid_device *hdev)
 	CREATE_SYSFS_FILE(display)
 	CREATE_SYSFS_FILE(range)
 	CREATE_SYSFS_FILE(rim_id)
+	CREATE_SYSFS_FILE(wheel_type)
 	CREATE_SYSFS_FILE(fw_version)
 	CREATE_SYSFS_FILE(fw_version_rim)
 
@@ -1267,6 +1330,7 @@ void ftecff_remove(struct hid_device *hdev)
 	REMOVE_SYSFS_FILE(display)
 	REMOVE_SYSFS_FILE(range)
 	REMOVE_SYSFS_FILE(rim_id)
+	REMOVE_SYSFS_FILE(wheel_type)
 	REMOVE_SYSFS_FILE(fw_version)
 	REMOVE_SYSFS_FILE(fw_version_rim)
 
@@ -1362,6 +1426,12 @@ int ftecff_raw_event(struct hid_device *hdev, struct hid_report *report,
 			kobject_uevent(&drv_data->tuning.dev->kobj,
 				       KOBJ_CHANGE);
 	} else if (data[0] == 0x01 && size == FTEC_WHEEL_REPORT_SIZE) {
+		if (hdev->product == CSR_ELITE_WHEELBASE_DEVICE_ID ||
+		    hdev->product == PORSCHE_911_WHEELBASE_DEVICE_ID) {
+			u8 wheel_type = ftec_wheel_type_from_legacy_report(data);
+			if (wheel_type != FTEC_WHEELTYPE_UNKNOWN)
+				drv_data->wheel_type = wheel_type;
+		}
 		if (data[30] == 0xff) {
 			// FIXME: this seems to work only with CSL Elite
 			if (data[31] == 0x04) {
