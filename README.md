@@ -145,7 +145,8 @@ Note: Every wheel registers two IDs. Only the first ID points to the real device
 ### Common
 
 * Set/get range: echo number in degrees to `range`
-* Get id of mounted wheel: `wheel_id` (16bit, e.g. `0x2102` for ClubSport F1 IS)
+* Get rim id of mounted wheel: `rim_id` (rim index byte as sent by the wheel-base, e.g. `18` for CSL WRC)
+* Get rim firmware version: `fw_version_rim`
 * Tuning menu (experimental): `ftec_tuning/*` 
   * Get/set 'standard'/'advanced' mode: `advanced_mode`
   * Get/set tuning menu slot: echo number into `SLOT`
@@ -170,8 +171,8 @@ may be required to create the directory:
 * `/sys/class/ftec_wheel/0003:0EB7:<PID>.<ID>/`
 
 * `name`: human-readable wheel rim name
-* Single-color rim LEDs: `<hiddev>:<wheel_id>:RPM<n>/brightness` (0/1)
-* Multicolor (RGB) rim LEDs: `<hiddev>:<wheel_id>:RGB:RPM<n>/` with `multi_intensity`, `red`, `green`, `blue`
+* Single-color rim LEDs: `<hiddev>:<rim_id>:RPM<n>/brightness` (0/1)
+* Multicolor (RGB) rim LEDs: `<hiddev>:<rim_id>:RGB:RPM<n>/` with `multi_intensity`, `red`, `green`, `blue`
   * `RPM1..9`: LED strip above the display
   * `RFLAG1..3` / `LFLAG1..3`: flag LEDs left/right of the display
 
