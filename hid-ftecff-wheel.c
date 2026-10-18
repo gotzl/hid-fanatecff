@@ -331,21 +331,64 @@ static DEVICE_ATTR(name, S_IRUSR | S_IRGRP | S_IROTH, ftec_wheel_name_show,
 
 struct class *ftec_wheel_class;
 
+/* LED layout per rim, derived from the capabilities the Fanatec SDK reports
+ * for each rim type (FSUtilHasWheelRimRevLeds / ...RevStripe / ...LedFlag):
+ *   - "rev stripe" rims    -> single RGB stripe (SINGLE_MC, 1 LED)
+ *   - rev bar + flag LEDs  -> 9 rev + 6 flag RGB LEDs (FLAG_MC, 15)
+ *   - rev bar only         -> 9 single-color rev LEDs (0, 9)
+ *   - no own LEDs          -> (0, 0); the Universal Hub / McLaren rims only
+ *     drive LEDs through an attached Button Module. The Podium Hub entry
+ *     keeps the 9+6 layout its button module provides.
+ */
 static const struct ftec_wheel wheels[] = {
-	{ CSL_STEERING_WHEEL_P1_V2_ID, "CSL Steering Wheel P1 V2 / BMW",
-	  FTEC_WHEEL_SINGLE_MC, 1 },
-	{ CSL_ELITE_STEERING_WHEEL_WRC_ID, "CSL Elite Steering Wheel WRC",
-	  FTEC_WHEEL_SINGLE_MC, 1 },
-	{ CSL_ELITE_STEERING_WHEEL_MCLAREN_GT3_V2_ID,
-		  "CSL Elite Steering Wheel McLaren GT3", 0, 0 },
+	{ CLUBSPORT_STEERING_WHEEL_BMW_M3_GT2_ID,
+	  "ClubSport Steering Wheel BMW M3 GT2", 0, 9 },
 	{ CLUBSPORT_STEERING_WHEEL_F1_IS_ID, "ClubSport Steering Wheel F1 IS",
 	  0, 9 },
+	{ CLUBSPORT_STEERING_WHEEL_PORSCHE_918_RSR_ID,
+	  "ClubSport Steering Wheel Porsche 918 RSR", 0, 9 },
+	/* LEDs provided by an attached Button Module */
+	{ CLUBSPORT_STEERING_WHEEL_UNIVERSAL_HUB_ID,
+	  "ClubSport Steering Wheel Universal Hub", 0, 0 },
+	{ CLUBSPORT_STEERING_WHEEL_UNIVERSAL_HUB_XBOX_ONE_ID,
+	  "ClubSport Steering Wheel Universal Hub for Xbox One", 0, 0 },
+	{ CSL_STEERING_WHEEL_P1_XBOX_ONE_ID,
+	  "CSL Steering Wheel P1 for Xbox One", FTEC_WHEEL_SINGLE_MC, 1 },
+	{ CSL_STEERING_WHEEL_P1_V2_ID, "CSL Steering Wheel P1 V2 / BMW",
+	  FTEC_WHEEL_SINGLE_MC, 1 },
+	/* LEDs provided by an attached Button Module */
+	{ CSL_ELITE_STEERING_WHEEL_MCLAREN_GT3_V1_ID,
+	  "CSL Elite Steering Wheel McLaren GT3 V1.0", 0, 0 },
 	{ CLUBSPORT_STEERING_WHEEL_FORMULA_V2_ID,
 	  "ClubSport Steering Wheel Formula V2", FTEC_WHEEL_FLAG_MC, 15 },
-	//	{ PODIUM_STEERING_WHEEL_PORSCHE_911_GT3_R_ID,
-	//	  "Podium Steering Wheel Porsche 911 GT3 R", 0, 9 },
+	/* LEDs provided by an attached Button Module */
+	{ CSL_ELITE_STEERING_WHEEL_MCLAREN_GT3_V2_ID,
+	  "CSL Elite Steering Wheel McLaren GT3", 0, 0 },
 	{ PODIUM_BUTTON_MODULE_ENDURANCE_ID, "Podium Button Module Endurance",
 	  FTEC_WHEEL_FLAG_MC, 15 },
+	{ CSL_ELITE_STEERING_WHEEL_WRC_ALT_ID, "CSL Elite Steering Wheel WRC",
+	  FTEC_WHEEL_SINGLE_MC, 1 },
+	{ PODIUM_STEERING_WHEEL_BENTLEY_GT3_ID,
+	  "Podium Steering Wheel Bentley GT3", FTEC_WHEEL_FLAG_MC, 15 },
+	{ PODIUM_STEERING_WHEEL_BMW_M4_GT3_ID,
+	  "Podium Steering Wheel BMW M4 GT3", FTEC_WHEEL_FLAG_MC, 15 },
+	{ PODIUM_STEERING_WHEEL_DD_GT_ID,
+	  "Podium Steering Wheel DD GT", 0, 9 },
+	/* LEDs provided by an attached Button Module */
+	{ CSL_STEERING_WHEEL_UNIVERSAL_HUB_ID,
+	  "CSL Steering Wheel Universal Hub", 0, 0 },
+	{ CSL_ELITE_STEERING_WHEEL_WRC_ID, "CSL Elite Steering Wheel WRC",
+	  FTEC_WHEEL_SINGLE_MC, 1 },
+	{ CLUBSPORT_STEERING_WHEEL_BMW_V2_ID,
+	  "ClubSport Steering Wheel BMW V2", 0, 9 },
+	{ CLUBSPORT_STEERING_WHEEL_RS_ID, "ClubSport Steering Wheel RS", 0, 9 },
+	/* LEDs provided by an attached Button Module */
+	{ CLUBSPORT_STEERING_WHEEL_UNIVERSAL_HUB_V2_ID,
+	  "ClubSport Universal Hub V2", 0, 0 },
+	{ CLUBSPORT_STEERING_WHEEL_F1_ESPORTS_V2_ID,
+	  "ClubSport Steering Wheel F1 Esports V2", FTEC_WHEEL_FLAG_MC, 15 },
+	{ PODIUM_STEERING_WHEEL_DD_GT_X_ID,
+	  "Podium Steering Wheel DD GT X", FTEC_WHEEL_FLAG_MC, 15 },
 	{}
 };
 

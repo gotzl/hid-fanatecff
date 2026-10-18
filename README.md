@@ -177,13 +177,6 @@ may be required to create the directory:
   * `RPM1..9`: LED strip above the display
   * `RFLAG1..3` / `LFLAG1..3`: flag LEDs left/right of the display
 
-Supported rims:
-* CSL Steering Wheel P1 V2 / BMW — 1 RGB LED
-* CSL Elite Steering Wheel WRC — 1 RGB LED
-* ClubSport Steering Wheel F1 IS — 9 single-color RPM LEDs
-* ClubSport Steering Wheel Formula V2 — 9 RGB RPM LEDs + 6 RGB flag LEDs
-* Podium Button Module Endurance — 9 RGB RPM LEDs + 6 RGB flag LEDs
-
 ### CSL Elite Base
 
 * RPM LEDs: `leds/<hiddev>::RPM<n>/brightness` (n from 1 to 9)
