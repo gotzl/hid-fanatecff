@@ -15,6 +15,7 @@ clean:
 install:
 	@echo -e "\n::\033[34m Installing Fanatec kernel module/udev rule\033[0m"
 	@echo "====================================================="
+	@mkdir -p ${MODULEDIR}
 	@cp -v hid-fanatec.ko ${MODULEDIR}
 	@cp -v fanatec.rules /etc/udev/rules.d/99-fanatec.rules
 	depmod
