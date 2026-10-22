@@ -245,6 +245,21 @@ const u8 rdesc_pid_ffb[] = {
 #include "hid-ftec-pid.h"
 };
 
+const u8 rdesc_simulation[] = {
+	0x05, 0x02, 0x09, 0x02, 0xa1, 0x02, 0xc0,
+};
+
+static u32 ftec_rdesc_item_value(const u8 *item, u8 size)
+{
+	u32 value = 0;
+	u8 i;
+
+	for (i = 0; i < size; i++)
+		value |= (u32)item[i + 1] << (8 * i);
+
+	return value;
+}
+
 static int ftec_client_rdesc_fixup(struct ftec_drv_data_client *client,
 				   const u8 *dev_rdesc, size_t dev_rsize)
 {
@@ -252,21 +267,39 @@ static int ftec_client_rdesc_fixup(struct ftec_drv_data_client *client,
 	u8 *pos;
 	unsigned depth = 0;
 	u8 size, report_id = 255;
+	u32 usage_page = 0, usage = 0, top_usage = 0;
 
 	for (ref_pos = dev_rdesc, ref_end = dev_rdesc + dev_rsize,
 	    pos = (u8 *)rdesc, end = rdesc + sizeof(client->rdesc);
 	     ref_pos != ref_end && pos != end;
 	     ref_pos += size + 1, pos += size + 1) {
-		if (*ref_pos == 0xC0 && --depth == 0 && report_id == 1) {
-			// inject the pid ffb collection
-			if (pos + sizeof(rdesc_pid_ffb) > end) {
-				hid_err(client->hdev,
-					"Need %lu bytes to inject ffb\n",
-					sizeof(rdesc_pid_ffb));
-				return 1;
+		if (*ref_pos == 0xC0) {
+			if (depth == 1 &&
+			    (top_usage == HID_GD_JOYSTICK ||
+			     top_usage == HID_GD_GAMEPAD)) {
+				if (pos + sizeof(rdesc_simulation) > end) {
+					hid_err(client->hdev,
+						"Need %lu bytes to inject simulation\n",
+						sizeof(rdesc_simulation));
+					return 1;
+				}
+				memcpy(pos, rdesc_simulation,
+				       sizeof(rdesc_simulation));
+				pos += sizeof(rdesc_simulation);
 			}
-			memcpy(pos, rdesc_pid_ffb, sizeof(rdesc_pid_ffb));
-			pos += sizeof(rdesc_pid_ffb);
+
+			if (--depth == 0 && report_id == 1) {
+				// inject the pid ffb collection
+				if (pos + sizeof(rdesc_pid_ffb) > end) {
+					hid_err(client->hdev,
+						"Need %lu bytes to inject ffb\n",
+						sizeof(rdesc_pid_ffb));
+					return 1;
+				}
+				memcpy(pos, rdesc_pid_ffb,
+				       sizeof(rdesc_pid_ffb));
+				pos += sizeof(rdesc_pid_ffb);
+			}
 		}
 
 		size = (*ref_pos & 0x03);
@@ -280,10 +313,18 @@ static int ftec_client_rdesc_fixup(struct ftec_drv_data_client *client,
 
 		memcpy(pos, ref_pos, size + 1);
 
+		if ((*ref_pos & 0xfc) == 0x04)
+			usage_page = ftec_rdesc_item_value(ref_pos, size);
+		if ((*ref_pos & 0xfc) == 0x08)
+			usage = (usage_page << 16) |
+				ftec_rdesc_item_value(ref_pos, size);
 		if (*ref_pos == 0x85)
-			report_id = *(ref_pos + 1);
-		if (*ref_pos == 0xA1)
+			report_id = ftec_rdesc_item_value(ref_pos, size);
+		if (*ref_pos == 0xA1) {
+			if (depth == 0)
+				top_usage = usage;
 			++depth;
+		}
 		if (false && *ref_pos == 0x09 && *(ref_pos + 1) == 0x31 &&
 		    report_id == 1) {
 			// skip logical/physical max in original descriptor
