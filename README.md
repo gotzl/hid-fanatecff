@@ -115,8 +115,8 @@ Games that are expected to work (tested by me and others more or less regularly)
 | DiRT 4          | proton | yes | ? | ? | |
 | DiRT Rally 2(**)| proton | no, crash on stage-load | yes | no | |
 | WRC(**)         | proton | no, crash on startup | yes | yes | can't be played anymore due to anti-cheat |
-| F1 2020/2021    | proton | yes | yes | no | FFB is weak and some effects seem to be missing, see (#22) |
-| F1 2X           | proton | no, crash on startup | yes | yes | FFB is weak and some effects seem to be missing |
+| F1 2020/2021    | proton | no, weak/wrong FFB | yes | yes | |
+| F1 2X           | proton | no, crash on startup | yes | yes |  |
 | Forza Horizon 5 | proton | yes | yes | no | restart required after input remapping |
 | JDM             | proton | no (***) | yes | no | |
 | Le Mans Ultimate| proton | no, crash on startup | yes | yes | needs custom proton (GE-Proton10-34-LMU-hid_fixes), needs FFB set to `inverted` |
