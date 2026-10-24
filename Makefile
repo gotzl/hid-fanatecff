@@ -5,12 +5,12 @@ MODULEDIR ?= /lib/modules/${KVERSION}/kernel/drivers/hid
 default:
 	@echo -e "\n::\033[32m Compiling Fanatec kernel module\033[0m"
 	@echo "========================================"
-	$(MAKE) -C $(KERNEL_SRC) M=$$PWD
+	$(MAKE) -C $(KERNEL_SRC) M="$$PWD"
 
 clean:
 	@echo -e "\n::\033[32m Cleaning Fanatec kernel module\033[0m"
 	@echo "========================================"
-	$(MAKE) -C $(KERNEL_SRC) M=$$PWD clean
+	$(MAKE) -C $(KERNEL_SRC) M="$$PWD" clean
 
 install:
 	@echo -e "\n::\033[34m Installing Fanatec kernel module/udev rule\033[0m"
