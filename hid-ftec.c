@@ -18,6 +18,11 @@ module_param(hidraw_pid, bool, 0);
 // use custom button mapping
 bool custom_button_mapping = false;
 module_param(custom_button_mapping, bool, 0);
+// repaint the SDK rev-limiter blink palette (yellow/red/blue) to all blue
+bool rev_shift_blue = true;
+module_param(rev_shift_blue, bool, 0644);
+MODULE_PARM_DESC(rev_shift_blue,
+		 "Rewrite the SDK rev-limiter blink-ON packet to all blue");
 
 #define DEBUG(...) pr_debug("ftec: " __VA_ARGS__)
 
@@ -789,6 +794,107 @@ static int handle_pid_device_control(struct ftec_drv_data *drv_data,
 	return count;
 }
 
+// Rev-LED protocol (report 255, 64 bytes): FF 01 00 + 13 row0 bytes +
+// 16 row1 bytes + 32 zero bytes. Row0/row1 hold BGR565 color pairs, one
+// per LED group (07E0 green, 07FF yellow, 001F red, F800 blue).
+#define FTEC_REV_REPORT_ID 255
+#define FTEC_REV_REPORT_SIZE 64
+#define FTEC_REV_CMD0 0x01
+#define FTEC_REV_CMD1 0x00
+
+/* The Fanatec SDK hardcodes LEDs 0-2 yellow, 3-5 red, 6-8 blue when the
+ * game switches all rev LEDs on, so the rev limiter blinks yellow/red/blue
+ * instead of all blue. Match that exact blink-ON packet and repaint all blue.
+ */
+static void ftec_fix_rev_shift_blink(u8 *buf, size_t count)
+{
+	static const u8 blink_on[12] = {
+		0x07, 0xff, 0x07, 0xff, 0x07, 0xff,
+		0x00, 0x1f, 0x00, 0x1f, 0x00, 0x1f,
+	};
+	int i;
+
+	if (!rev_shift_blue)
+		return;
+	if (count < 3 + sizeof(blink_on) || buf[0] != FTEC_REV_REPORT_ID ||
+	    buf[1] != FTEC_REV_CMD0 || buf[2] != FTEC_REV_CMD1)
+		return;
+	if (memcmp(&buf[3], blink_on, sizeof(blink_on)))
+		return;
+
+	for (i = 0; i < (int)sizeof(blink_on); i += 2) {
+		buf[3 + i] = 0xf8;
+		buf[3 + i + 1] = 0x00;
+	}
+}
+
+struct ftec_ff_mailbox {
+	u8 buf[64];
+	size_t len;
+};
+
+/* Worker: send whatever is newest in the mailbox, then re-check so a packet
+ * that arrived mid-send is picked up without an extra wakeup. Stale packets
+ * overwritten before the worker got to them are coalesced (counted), which
+ * is correct for a continuous force stream and bounds latency.
+ *
+ * Rationale: the game issues these packets as overlapped WriteFiles, which
+ * complete asynchronously on Windows. Wine/Proton instead fulfills them with
+ * a synchronous write() to the hidraw node (winebus.sys,
+ * hidraw_device_set_output_report), so every packet blocks the writer for a
+ * full USB round trip; the game emits them in bursts of ~30 per PlayStart at
+ * ~333/s, which stalls its streaming thread.
+ */
+static void ftec_ff_work(struct work_struct *work)
+{
+	struct ftec_drv_data *drv_data =
+		container_of(work, struct ftec_drv_data, ff_work);
+	struct ftec_ff_mailbox send;
+	unsigned long flags;
+
+	for (;;) {
+		spin_lock_irqsave(&drv_data->ff_lock, flags);
+		if (!drv_data->ff_slot_pending) {
+			spin_unlock_irqrestore(&drv_data->ff_lock, flags);
+			break;
+		}
+		memcpy(send.buf, drv_data->ff_slot, drv_data->ff_slot_len);
+		send.len = drv_data->ff_slot_len;
+		drv_data->ff_slot_pending = false;
+		spin_unlock_irqrestore(&drv_data->ff_lock, flags);
+
+		hid_hw_output_report(drv_data->hid, send.buf, send.len);
+	}
+}
+
+/* Returns 0 when the packet was queued (caller must return count), <0 to
+ * fall back to a synchronous send.
+ */
+static int ftec_ff_submit_async(struct ftec_drv_data *drv_data, u8 *buf,
+				size_t count)
+{
+	unsigned long flags;
+
+	if (count > sizeof(drv_data->ff_slot) || !drv_data->ff_wq)
+		return -EINVAL;
+
+	spin_lock_irqsave(&drv_data->ff_lock, flags);
+	if (drv_data->ff_slot_pending)
+		drv_data->ff_stat_coalesced++;
+	memcpy(drv_data->ff_slot, buf, count);
+	drv_data->ff_slot_len = count;
+	drv_data->ff_slot_pending = true;
+	spin_unlock_irqrestore(&drv_data->ff_lock, flags);
+
+	/* queue_work() is a no-op when already queued/running; the worker
+	 * loop re-checks the mailbox, so nothing more to do either way */
+	queue_work(drv_data->ff_wq, &drv_data->ff_work);
+	if (drv_data->ff_stat_queued == 0)
+		hid_info(drv_data->hid, "report-255 OUT going async\n");
+	drv_data->ff_stat_queued++;
+	return 0;
+}
+
 static int ftec_client_ll_raw_request(struct hid_device *hdev,
 				      unsigned char reportnum, u8 *buf,
 				      size_t count, unsigned char report_type,
@@ -802,6 +908,13 @@ static int ftec_client_ll_raw_request(struct hid_device *hdev,
 
 	if (reportnum <= 2 || reportnum == 255) {
 		// forward these reports directly to the device
+		if (reportnum == FTEC_REV_REPORT_ID)
+			ftec_fix_rev_shift_blink(buf, count);
+		if (reportnum == FTEC_REV_REPORT_ID &&
+		    !ftec_ff_submit_async(drv_data, buf, count))
+			return count;
+		if (reportnum == FTEC_REV_REPORT_ID)
+			drv_data->ff_stat_sync_fallback++;
 		return hid_hw_output_report(drv_data->hid, buf, count);
 	}
 
@@ -906,6 +1019,12 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 		return -ENOMEM;
 	}
 	memset(&drv_data->client, 0, sizeof(drv_data->client));
+	spin_lock_init(&drv_data->ff_lock);
+	INIT_WORK(&drv_data->ff_work, ftec_ff_work);
+	drv_data->ff_wq = alloc_ordered_workqueue("ftec_ff", 0);
+	if (!drv_data->ff_wq)
+		hid_warn(hdev,
+			 "ff workqueue alloc failed, report-255 stays synchronous\n");
 	drv_data->quirks = id->driver_data;
 	drv_data->min_range = 90;
 	// technically max_range is 1080, but 1090 is used as 'auto'
@@ -1016,6 +1135,8 @@ err_client:
 err_stop:
 	hid_hw_stop(hdev);
 err_free:
+	if (drv_data->ff_wq)
+		destroy_workqueue(drv_data->ff_wq);
 	kfree(drv_data);
 	return ret;
 }
@@ -1028,6 +1149,16 @@ static void ftec_remove(struct hid_device *hdev)
 		hid_hw_stop(hdev);
 		return;
 	}
+
+	if (drv_data->ff_wq)
+		destroy_workqueue(drv_data->ff_wq);
+	if (drv_data->ff_stat_queued || drv_data->ff_stat_sync_fallback ||
+	    drv_data->ff_stat_coalesced)
+		hid_info(hdev,
+			 "report-255 OUT stats: deferred %lu, sync-fallback %lu, coalesced %lu\n",
+			 drv_data->ff_stat_queued,
+			 drv_data->ff_stat_sync_fallback,
+			 drv_data->ff_stat_coalesced);
 
 	if (drv_data->client.hdev) {
 		hid_destroy_device(drv_data->client.hdev);

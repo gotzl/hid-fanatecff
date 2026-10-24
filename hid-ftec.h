@@ -3,6 +3,7 @@
 
 #include <linux/module.h>
 #include <linux/input.h>
+#include <linux/workqueue.h>
 #if IS_REACHABLE(CONFIG_LEDS_CLASS)
 #include <linux/leds.h>
 #endif
@@ -172,6 +173,20 @@ struct ftec_drv_data {
 	struct hid_device *hid;
 	struct hid_report *report;
 	struct ftec_drv_data_client client;
+	/* Deferred fire-and-forget OUT path for report 255 (FullForce + rev
+	 * LEDs); rationale at ftec_ff_work(). The writer only swaps a
+	 * single-slot mailbox and returns; a worker performs the actual
+	 * (blocking) send, coalescing stale packets.
+	 */
+	struct workqueue_struct *ff_wq;
+	struct work_struct ff_work;
+	spinlock_t ff_lock; /* protects ff_slot/ff_slot_len/ff_slot_pending */
+	u8 ff_slot[64];
+	size_t ff_slot_len;
+	bool ff_slot_pending;
+	unsigned long ff_stat_queued;
+	unsigned long ff_stat_sync_fallback;
+	unsigned long ff_stat_coalesced;
 	struct ftecff_slot slots[5];
 	struct ftecff_effect_state states[FTECFF_MAX_EFFECTS];
 	int effects_used;
