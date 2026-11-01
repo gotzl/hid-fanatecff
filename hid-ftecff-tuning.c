@@ -106,7 +106,7 @@ static enum ftec_tuning_attrs_enum
 ftec_tuning_get_id(struct device_attribute *attr)
 {
 	int idx = 0;
-	for (; idx < sizeof(ftec_tuning_attrs); idx++) {
+	for (; idx < ARRAY_SIZE(ftec_tuning_attrs); idx++) {
 		if (strcmp(attr->attr.name, ftec_tuning_attrs[idx].name) == 0) {
 			return ftec_tuning_attrs[idx].id;
 		}
@@ -343,10 +343,12 @@ int ftec_tuning_classdev_register(struct device *parent,
 void ftec_tuning_classdev_unregister(
 	struct ftec_tuning_classdev *ftec_tuning_cdev)
 {
-	struct hid_device *hdev = to_hid_device(ftec_tuning_cdev->dev->parent);
+	struct hid_device *hdev;
 
 	if (IS_ERR_OR_NULL(ftec_tuning_cdev->dev))
 		return;
+
+	hdev = to_hid_device(ftec_tuning_cdev->dev->parent);
 
 #define REMOVE_SYSFS_FILE(name) \
 	device_remove_file(ftec_tuning_cdev->dev, &dev_attr_##name);
@@ -390,4 +392,5 @@ void ftec_tuning_classdev_unregister(
 	}
 
 	device_unregister(ftec_tuning_cdev->dev);
+	ftec_tuning_cdev->dev = NULL;
 }
