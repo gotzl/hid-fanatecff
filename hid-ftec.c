@@ -795,15 +795,25 @@ static int ftec_client_ll_raw_request(struct hid_device *hdev,
 				      int reqtype)
 {
 	struct ftec_drv_data *drv_data = hdev->driver_data;
-	struct hid_input *hidinput =
-		list_entry(drv_data->hid->inputs.next, struct hid_input, list);
-	struct input_dev *inputdev = hidinput->input;
-	struct ff_device *ff = hidinput->input->ff;
+	struct hid_input *hidinput;
+	struct input_dev *inputdev;
+	struct ff_device *ff;
+
+	if (!drv_data || !drv_data->hid)
+		return -ENODEV;
 
 	if (reportnum <= 2 || reportnum == 255) {
 		// forward these reports directly to the device
 		return hid_hw_output_report(drv_data->hid, buf, count);
 	}
+
+	if (list_empty(&drv_data->hid->inputs))
+		return -ENODEV;
+
+	hidinput = list_first_entry(&drv_data->hid->inputs, struct hid_input,
+				    list);
+	inputdev = hidinput->input;
+	ff = inputdev->ff;
 
 	// DEBUG("ftec_client_ll_raw_request num %2u, count %2lu, rep type %#02x, req
 	// type %#02x", reportnum, count, report_type, reqtype);
@@ -872,6 +882,11 @@ static struct hid_device *ftec_create_client_hid(struct hid_device *hdev)
         */
 	client_hdev->group = HID_GROUP_STEAM;
 	return client_hdev;
+}
+
+static bool ftec_hw_open_required(struct ftec_drv_data *drv_data)
+{
+	return drv_data->quirks & FTEC_TUNING_MENU || hidraw_pid;
 }
 
 static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
@@ -944,13 +959,13 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 		goto err_stop;
 	}
 
-	if (drv_data->quirks & FTEC_TUNING_MENU || hidraw_pid) {
+	if (ftec_hw_open_required(drv_data)) {
 		/* Open the device to receive reports with tuning menu data and device state
          */
 		ret = hid_hw_open(hdev);
 		if (ret < 0) {
 			hid_err(hdev, "hw open failed\n");
-			goto err_client;
+			goto err_stop;
 		}
 	}
 
@@ -1013,6 +1028,8 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 err_client:
 	if (drv_data->client.hdev)
 		hid_destroy_device(drv_data->client.hdev);
+	if (ftec_hw_open_required(drv_data))
+		hid_hw_close(hdev);
 err_stop:
 	hid_hw_stop(hdev);
 err_free:
@@ -1027,6 +1044,10 @@ static void ftec_remove(struct hid_device *hdev)
 	if (!drv_data || hdev->group == HID_GROUP_STEAM) {
 		hid_hw_stop(hdev);
 		return;
+	}
+
+	if (drv_data->quirks & FTEC_FF) {
+		ftecff_remove(hdev);
 	}
 
 	if (drv_data->client.hdev) {
@@ -1044,11 +1065,8 @@ static void ftec_remove(struct hid_device *hdev)
 		device_remove_file(&hdev->dev, &dev_attr_rumble);
 	}
 
-	if (drv_data->quirks & FTEC_FF) {
-		ftecff_remove(hdev);
-	}
-
-	hid_hw_close(hdev);
+	if (ftec_hw_open_required(drv_data))
+		hid_hw_close(hdev);
 	hid_hw_stop(hdev);
 	kfree(drv_data);
 }
