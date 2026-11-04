@@ -86,6 +86,61 @@ static const struct ftec_tuning_attr_t ftec_tuning_attrs[] = {
 #undef FTEC_TUNING_ATTR
 };
 
+static int ftec_tuning_send(struct hid_device *hid, u8 subcmd, u8 val)
+{
+	u8 *buf = kzalloc(8, GFP_KERNEL);
+	int ret;
+
+	if (!buf)
+		return -ENOMEM;
+
+	buf[0] = 0xff;
+	buf[1] = 0x08;
+	buf[2] = subcmd;
+	buf[3] = val;
+
+	ret = hid_hw_output_report(hid, buf, 8);
+	kfree(buf);
+	return ret;
+}
+
+int ftec_tuning_request_data(struct hid_device *hid)
+{
+	return ftec_tuning_send(hid, 0x01, 0xff);
+}
+
+int ftec_tuning_request_info(struct hid_device *hid)
+{
+	return ftec_tuning_send(hid, 0x02, 0x00);
+}
+
+int ftec_tuning_request(struct hid_device *hid)
+{
+	u8 *buf = kzalloc(FTEC_TUNING_REPORT_SIZE, GFP_KERNEL);
+	int ret;
+
+	if (!buf)
+		return -ENOMEM;
+
+	buf[0] = 0xff;
+	buf[1] = 0x03;
+	buf[2] = 0x02;
+
+	ret = hid_hw_output_report(hid, buf, FTEC_TUNING_REPORT_SIZE);
+	kfree(buf);
+	return ret;
+}
+
+int ftec_tuning_init(struct hid_device *hid)
+{
+	int ret = ftec_tuning_request_data(hid);
+
+	if (ret < 0)
+		return ret;
+
+	return ftec_tuning_request_info(hid);
+}
+
 static int ftec_tuning_write(struct hid_device *hid, int addr, int val)
 {
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hid);

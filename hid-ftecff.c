@@ -7,6 +7,7 @@
 #include <linux/hrtimer.h>
 #include <linux/fixp-arith.h>
 #include <linux/version.h>
+#include <linux/delay.h>
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0)
 #include <linux/unaligned.h>
@@ -19,7 +20,9 @@
 // parameter to set the initial range
 // if unset, the wheels max range is used
 int init_range = 0;
-module_param(init_range, int, 0);
+module_param(init_range, int, 0660);
+MODULE_PARM_DESC(init_range,
+		 "Initial wheel range in degrees; 0 uses the wheelbase maximum/AUTO");
 
 // parameter to enable detailed raw-event logging
 unsigned long debug_raw_event = 0;
@@ -232,6 +235,25 @@ static void ftec_set_range(struct hid_device *hid, u16 range)
 	value[6] = 0x00;
 	send_report_request_to_device(drv_data);
 	spin_unlock_irqrestore(&drv_data->report_lock, flags);
+}
+
+static bool ftec_use_init_range(struct hid_device *hdev,
+				struct ftec_drv_data *drv_data)
+{
+	if (init_range <= 0)
+		return false;
+
+	if (init_range > drv_data->max_range ||
+	    init_range < drv_data->min_range) {
+		hid_warn(hdev,
+			 "Invalid init_range %i; ignoring it (valid range %u-%u)\n",
+			 init_range, drv_data->min_range,
+			 drv_data->max_range);
+		init_range = -1;
+		return false;
+	}
+
+	return true;
 }
 
 /* Export the currently set range of the wheel */
@@ -1193,6 +1215,102 @@ static u8 ftec_wheel_type_from_legacy_report(const u8 *data)
 	return FTEC_WHEELTYPE_UNKNOWN;
 }
 
+static void ftec_event_driven_init(struct ftec_drv_data *drv_data)
+{
+	struct hid_device *hdev = drv_data->hid;
+	unsigned long flags;
+	int ret;
+	s32 *value;
+
+	ret = ftec_tuning_init(hdev);
+	if (ret < 0)
+		hid_warn(hdev, "failed to initialize tuning menu: %d\n", ret);
+
+	spin_lock_irqsave(&drv_data->report_lock, flags);
+	value = drv_data->report->field[0]->value;
+	value[0] = 0xf8;
+	value[1] = 0x09;
+	value[2] = 0x01;
+	value[3] = 0x06;
+	value[4] = 0xff;
+	value[5] = 0x01;
+	value[6] = 0x00;
+	send_report_request_to_device(drv_data);
+	value[5] = 0x00;
+	send_report_request_to_device(drv_data);
+	value[5] = 0x04;
+	send_report_request_to_device(drv_data);
+	spin_unlock_irqrestore(&drv_data->report_lock, flags);
+
+	hid_hw_wait(hdev);
+
+	ret = ftec_tuning_request_data(hdev);
+	if (ret < 0)
+		hid_warn(hdev, "failed to request tuning data: %d\n", ret);
+
+	ret = ftec_tuning_request(hdev);
+	if (ret < 0)
+		hid_warn(hdev, "failed to request tuning menu: %d\n", ret);
+
+	spin_lock_irqsave(&drv_data->report_lock, flags);
+	value = drv_data->report->field[0]->value;
+	value[0] = 0xf5;
+	value[1] = 0x00;
+	value[2] = 0x00;
+	value[3] = 0x00;
+	value[4] = 0x00;
+	value[5] = 0x00;
+	value[6] = 0x00;
+	send_report_request_to_device(drv_data);
+	spin_unlock_irqrestore(&drv_data->report_lock, flags);
+
+	hid_hw_wait(hdev);
+
+	ret = ftec_tuning_request_info(hdev);
+	if (ret < 0)
+		hid_warn(hdev, "failed to request device info: %d\n", ret);
+
+	spin_lock_irqsave(&drv_data->report_lock, flags);
+	value = drv_data->report->field[0]->value;
+	value[0] = 0xf8;
+	value[1] = 0x09;
+	value[2] = 0x01;
+	value[3] = 0x05;
+	value[4] = 0x00;
+	value[5] = 0x00;
+	value[6] = 0x00;
+	send_report_request_to_device(drv_data);
+	spin_unlock_irqrestore(&drv_data->report_lock, flags);
+
+	hid_hw_wait(hdev);
+
+	if (ftec_use_init_range(hdev, drv_data)) {
+		ftec_set_range(hdev, init_range);
+		drv_data->range = init_range;
+		hid_hw_wait(hdev);
+
+		if ((drv_data->quirks & FTEC_TUNING_MENU) &&
+		    !IS_ERR_OR_NULL(drv_data->tuning.dev)) {
+			ret = ftec_tuning_request_data(hdev);
+			if (ret < 0)
+				hid_warn(hdev,
+					 "failed to refresh tuning data: %d\n",
+					 ret);
+			else
+				msleep(20);
+		}
+	}
+}
+
+static void ftec_event_driven_init_work(struct work_struct *work)
+{
+	struct ftec_drv_data *drv_data =
+		container_of(work, struct ftec_drv_data,
+			     event_driven_init_work);
+
+	ftec_event_driven_init(drv_data);
+}
+
 int ftecff_init(struct hid_device *hdev)
 {
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hdev);
@@ -1202,6 +1320,7 @@ int ftecff_init(struct hid_device *hdev)
 	struct ff_device *ff;
 	unsigned long flags;
 	int ret, j;
+	bool use_init_range;
 	s32 *value;
 
 	dbg_hid(" ... setting FF bits");
@@ -1219,26 +1338,10 @@ int ftecff_init(struct hid_device *hdev)
 	ff->playback = ftecff_play_effect;
 	ff->destroy = ftecff_destroy;
 
-	/* init sequence */
-	{
-		/* tuning menu initialization? */
-		/*
-		if (drv_data->quirks & FTEC_TUNING_MENU) {
-			u8 buf[] = {
-				0xff, 0x08, 0x01, 0xff, 0x0, 0x0, 0x0, 0x0
-			};
-			ret = hid_hw_output_report(hdev, &buf[0], 8);
-			buf[2] = 0x2;
-			buf[3] = 0x0;
-			ret = hid_hw_output_report(hdev, &buf[0], 8);
-			// FIXME: does this work to fetch current tuning menu values?
-			buf[1] = 0x03;
-			buf[2] = 0x02;
-			ret = hid_hw_output_report(hdev, &buf[0], 8);
-		}
-		*/
-
-		/* common initialization? */
+	if (drv_data->quirks & FTEC_EVENT_DRIVEN) {
+		drv_data->range = drv_data->max_range;
+	} else {
+		/* Initialize subid state for device reports */
 		spin_lock_irqsave(&drv_data->report_lock, flags);
 		value = drv_data->report->field[0]->value;
 		value[0] = 0xf8;
@@ -1249,24 +1352,18 @@ int ftecff_init(struct hid_device *hdev)
 		value[5] = 0x01;
 		value[6] = 0x00;
 		send_report_request_to_device(drv_data);
-		value[5] = 0x0;
+		value[5] = 0x00;
 		send_report_request_to_device(drv_data);
-		value[5] = 0x4;
+		value[5] = 0x04;
 		send_report_request_to_device(drv_data);
 		spin_unlock_irqrestore(&drv_data->report_lock, flags);
-	}
 
-	/* Set range so that centering spring gets disabled */
-	if (init_range > 0 && (init_range > drv_data->max_range ||
-			       init_range < drv_data->min_range)) {
-		hid_warn(
-			hdev,
-			"Invalid init_range %i; using max range of %i instead\n",
-			init_range, drv_data->max_range);
-		init_range = -1;
+		/* Set range so that centering spring gets disabled */
+		use_init_range = ftec_use_init_range(hdev, drv_data);
+		drv_data->range =
+			use_init_range ? init_range : drv_data->max_range;
+		ftec_set_range(hdev, drv_data->range);
 	}
-	drv_data->range = init_range > 0 ? init_range : drv_data->max_range;
-	ftec_set_range(hdev, drv_data->range);
 
 	drv_data->wheel_type = ftec_wheel_type_from_pid(hdev->product);
 
@@ -1313,6 +1410,10 @@ int ftecff_init(struct hid_device *hdev)
 	hid_info(hdev, "Hires timer: period = %d ms", timer_msecs);
 
 	INIT_WORK(&drv_data->wheel_work, ftec_register_wheel_handler);
+	INIT_WORK(&drv_data->event_driven_init_work,
+		  ftec_event_driven_init_work);
+	if (drv_data->quirks & FTEC_EVENT_DRIVEN)
+		schedule_work(&drv_data->event_driven_init_work);
 
 	return 0;
 }
@@ -1321,6 +1422,7 @@ void ftecff_remove(struct hid_device *hdev)
 {
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hdev);
 
+	cancel_work_sync(&drv_data->event_driven_init_work);
 	hrtimer_cancel(&drv_data->hrtimer);
 	ftecff_stop_effects(drv_data);
 
@@ -1407,6 +1509,23 @@ static void ftecff_log_raw_event(struct hid_device *hdev,
 	memcpy(last, data, size);
 }
 
+static void ftec_update_rim(struct ftec_drv_data *drv_data, u8 rim_id,
+			    u8 fw_version_rim)
+{
+	struct hid_device *hdev = drv_data->hid;
+
+	if (drv_data->rim_id != rim_id) {
+		hid_dbg(hdev, "Rim changed to rim_id %u (rim fw %u)\n", rim_id,
+			fw_version_rim);
+		drv_data->rim_id = rim_id;
+		drv_data->fw_version_rim = fw_version_rim;
+		schedule_work(&drv_data->wheel_work);
+	} else if (drv_data->fw_version_rim != fw_version_rim) {
+		hid_dbg(hdev, "Rim fw changed to %u\n", fw_version_rim);
+		drv_data->fw_version_rim = fw_version_rim;
+	}
+}
+
 int ftecff_raw_event(struct hid_device *hdev, struct hid_report *report,
 		     u8 *data, int size)
 {
@@ -1426,6 +1545,13 @@ int ftecff_raw_event(struct hid_device *hdev, struct hid_report *report,
 		if (!(IS_ERR_OR_NULL(drv_data->tuning.dev)))
 			kobject_uevent(&drv_data->tuning.dev->kobj,
 				       KOBJ_CHANGE);
+	} else if (data[0] == 0xff && size == FTEC_TUNING_REPORT_SIZE &&
+		   data[1] == 0x08 && (data[2] == 0x0a || data[2] == 0x0b)) {
+		u8 rim_id = data[24];
+		u8 fw_version_rim = data[data[2] == 0x0b ? 26 : 25];
+
+		if (rim_id != 0 && rim_id != 0xff)
+			ftec_update_rim(drv_data, rim_id, fw_version_rim);
 	} else if (data[0] == 0x01 && size == FTEC_WHEEL_REPORT_SIZE) {
 		if (hdev->product == CSR_ELITE_WHEELBASE_DEVICE_ID ||
 		    hdev->product == PORSCHE_911_WHEELBASE_DEVICE_ID) {
@@ -1454,18 +1580,7 @@ int ftecff_raw_event(struct hid_device *hdev, struct hid_report *report,
 				&data[FTEC_WHEEL_REPORT_SIZE - 2]);
 			rim_id = data[FTEC_WHEEL_REPORT_SIZE - 4];
 			fw_version_rim = data[FTEC_WHEEL_REPORT_SIZE - 3];
-			if (drv_data->rim_id != rim_id) {
-				hid_dbg(hdev,
-					"Rim changed to rim_id %u (rim fw %u)\n",
-					rim_id, fw_version_rim);
-				drv_data->rim_id = rim_id;
-				drv_data->fw_version_rim = fw_version_rim;
-				schedule_work(&drv_data->wheel_work);
-			} else if (drv_data->fw_version_rim != fw_version_rim) {
-				hid_dbg(hdev, "Rim fw changed to %u\n",
-					fw_version_rim);
-				drv_data->fw_version_rim = fw_version_rim;
-			}
+			ftec_update_rim(drv_data, rim_id, fw_version_rim);
 		}
 	}
 	return 0;

@@ -82,6 +82,7 @@ enum ftec_wheel_type {
 #define FTEC_WHEELBASE_LEDS 0x004
 #define FTEC_HIGHRES 0x008
 #define FTEC_TUNING_MENU 0x010
+#define FTEC_EVENT_DRIVEN 0x080
 
 // report sizes
 #define FTEC_TUNING_REPORT_SIZE 64
@@ -187,6 +188,7 @@ struct ftec_drv_data {
 	u16 fw_version;
 	u8 fw_version_rim;
 	struct work_struct wheel_work;
+	struct work_struct event_driven_init_work;
 	struct ftec_tuning_classdev tuning;
 	struct ftec_wheel_classdev wheel;
 	u8 last_tuning_event[FTEC_TUNING_REPORT_SIZE];
@@ -248,6 +250,10 @@ extern struct class *ftec_wheel_class;
 int ftec_tuning_classdev_register(struct device *,
 				  struct ftec_tuning_classdev *);
 void ftec_tuning_classdev_unregister(struct ftec_tuning_classdev *);
+int ftec_tuning_init(struct hid_device *);
+int ftec_tuning_request_data(struct hid_device *);
+int ftec_tuning_request_info(struct hid_device *);
+int ftec_tuning_request(struct hid_device *);
 ssize_t _ftec_tuning_show(struct device *, enum ftec_tuning_attrs_enum, char *);
 ssize_t _ftec_tuning_store(struct device *, enum ftec_tuning_attrs_enum,
 			   const char *, size_t);
