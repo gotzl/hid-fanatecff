@@ -1381,6 +1381,7 @@ static void ftecff_log_raw_event(struct hid_device *hdev,
 		last = drv_data->last_wheel_event;
 	} else {
 		hid_err(hdev, "invalid size %i\n", size);
+		return;
 	}
 
 	p = buf;
