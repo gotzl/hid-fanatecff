@@ -59,6 +59,16 @@ static int ftec_conv_signed_to(struct ftec_drv_data *drv_data, u8 val)
 	return (s8)val;
 };
 
+static int ftec_conv_minus_one(struct ftec_drv_data *drv_data, u8 val)
+{
+	return val - 1;
+};
+
+static u8 ftec_conv_plus_one(struct ftec_drv_data *drv_data, int val)
+{
+	return val + 1;
+};
+
 static int ftec_conv_noop_to(struct ftec_drv_data *drv_data, u8 val)
 {
 	return val;
@@ -121,12 +131,15 @@ ssize_t _ftec_tuning_show(struct device *dev, enum ftec_tuning_attrs_enum id,
 	struct hid_device *hid = to_hid_device(dev->parent);
 	struct ftec_drv_data *drv_data = hid_get_drvdata(hid);
 	const struct ftec_tuning_attr_t *tuning_attr = &ftec_tuning_attrs[id];
-	return scnprintf(
-		buf, PAGE_SIZE, "%i\n",
-		tuning_attr->conv_to(
-			drv_data,
-			drv_data->tuning
-				.ftec_tuning_data[tuning_attr->addr + 1]));
+	const int val = tuning_attr->conv_to(
+		drv_data,
+		drv_data->tuning.ftec_tuning_data[tuning_attr->addr + 1]);
+
+	if (id == SLOT && val == 0) {
+		return scnprintf(buf, PAGE_SIZE, "auto\n");
+	}
+
+	return scnprintf(buf, PAGE_SIZE, "%i\n", val);
 }
 
 static ssize_t ftec_tuning_show(struct device *dev,
@@ -156,9 +169,13 @@ ssize_t _ftec_tuning_store(struct device *dev, enum ftec_tuning_attrs_enum id,
 		return -EINVAL;
 	}
 
-	if (kstrtos32(buf, 0, &val) != 0) {
-		hid_err(hid, "Invalid value %s!\n", buf);
-		return -EINVAL;
+	if (id == SLOT && sysfs_streq(buf, "auto")) {
+		val = 0;
+	} else {
+		if (kstrtos32(buf, 0, &val) != 0) {
+			hid_err(hid, "Invalid value %s!\n", buf);
+			return -EINVAL;
+		}
 	}
 
 	/* special case for SEN, max value is device specific */
@@ -172,9 +189,11 @@ ssize_t _ftec_tuning_store(struct device *dev, enum ftec_tuning_attrs_enum id,
 
 	/* check if value is in range */
 	if (val < tuning_attr->min || val > _max) {
-		hid_err(hid, "Value %i out of range [%i, %i]!\n", val,
-			tuning_attr->min, _max);
-		return -EINVAL;
+		if (id != SLOT || val != 0) {
+			hid_err(hid, "Value %i out of range [%i, %i]!\n", val,
+				tuning_attr->min, _max);
+			return -EINVAL;
+		}
 	}
 
 	/* convert value to device specific value */

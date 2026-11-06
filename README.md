@@ -150,7 +150,7 @@ Note: Every wheel registers two IDs. Only the first ID points to the real device
 * Get rim firmware version: `fw_version_rim`
 * Tuning menu (experimental): `ftec_tuning/*` 
   * Get/set 'standard'/'advanced' mode: `advanced_mode`
-  * Get/set tuning menu slot: echo number into `SLOT`
+  * Get/set tuning menu slot: echo `auto` or `1`-`5` into `SLOT`
   * Reset all tuning sets by echoing anything into `RESET`
   * Values get/set: `BLI DPR DRI FEI FF FOR SEN SHO SPR ...` (files depend on wheel-base)
   * Force Feedback Scaling `FFS` (not available on all DD wheel bases)

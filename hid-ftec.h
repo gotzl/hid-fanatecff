@@ -194,8 +194,8 @@ struct ftec_drv_data {
 };
 
 #define FTEC_TUNING_ATTRS                                                  \
-	FTEC_TUNING_ATTR(SLOT, 0x02, "Slot", ftec_conv_noop_to,            \
-			 ftec_conv_noop_from, 1, 5)                        \
+	FTEC_TUNING_ATTR(SLOT, 0x02, "Slot", ftec_conv_minus_one,          \
+			 ftec_conv_plus_one, 1, 5)                         \
 	FTEC_TUNING_ATTR(SEN, 0x03, "Sensivity", ftec_conv_sens_to,        \
 			 ftec_conv_sens_from, 90, 0)                       \
 	FTEC_TUNING_ATTR(FF, 0x04, "Force Feedback Strength",              \
