@@ -162,6 +162,7 @@ Note: Every wheel registers two IDs. Only the first ID points to the real device
     * `3` `Bt`: Brake / Throttle
     * `4` `AnA`: Mappable analog axes, shared and interferes with analog ministick if present
 * Display: echo string to `display` (empty string turns display off)
+* Center calibration (only tested on CSL DD): echo anything to `CENTER`
 
 ### Wheel rims (experimental)
 
