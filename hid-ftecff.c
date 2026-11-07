@@ -21,12 +21,21 @@
 // if unset, the wheels max range is used
 int init_range = 0;
 module_param(init_range, int, 0660);
-MODULE_PARM_DESC(init_range,
-		 "Initial wheel range in degrees; 0 uses the wheelbase maximum/AUTO");
+MODULE_PARM_DESC(
+	init_range,
+	"Initial wheel range in degrees; 0 uses the wheelbase maximum/AUTO");
+
+// parameter to enable profile debug messages
+static int profile = 0;
+module_param(profile, int, 0660);
+MODULE_PARM_DESC(profile, "Enable profile debug messages.");
 
 // parameter to enable detailed raw-event logging
 unsigned long debug_raw_event = 0;
-module_param(debug_raw_event, ulong, 0);
+module_param(debug_raw_event, ulong, 0660);
+MODULE_PARM_DESC(
+	debug_raw_event,
+	"Bitmask for raw event logging (bit 0: wheel report, bit 1: tuning report)");
 #define DEBUG_RAW_EVENT_WHEEL_REPORT 0
 #define DEBUG_RAW_EVENT_TUNING_REPORT 1
 
@@ -58,10 +67,6 @@ module_param(enable_highres_dynamic_effects, int, 0);
 #define JIFFIES2MS(jiffies) ((jiffies) * 1000 / HZ)
 
 static int timer_msecs = DEFAULT_TIMER_PERIOD;
-
-static int profile = 1;
-module_param(profile, int, 0660);
-MODULE_PARM_DESC(profile, "Enable profile debug messages.");
 
 static const signed short ftecff_wheel_effects[] = {
 	FF_CONSTANT, FF_SPRING,	  FF_DAMPER,   FF_INERTIA,
@@ -245,10 +250,10 @@ static bool ftec_use_init_range(struct hid_device *hdev,
 
 	if (init_range > drv_data->max_range ||
 	    init_range < drv_data->min_range) {
-		hid_warn(hdev,
-			 "Invalid init_range %i; ignoring it (valid range %u-%u)\n",
-			 init_range, drv_data->min_range,
-			 drv_data->max_range);
+		hid_warn(
+			hdev,
+			"Invalid init_range %i; ignoring it (valid range %u-%u)\n",
+			init_range, drv_data->min_range, drv_data->max_range);
 		init_range = -1;
 		return false;
 	}
@@ -325,13 +330,12 @@ static DEVICE_ATTR(range, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH,
 
 /* Export the rim type (rim index byte as sent by the wheel-base) */
 static ssize_t ftec_rim_id_show(struct device *dev,
-				  struct device_attribute *attr, char *buf)
+				struct device_attribute *attr, char *buf)
 {
 	struct ftec_drv_data *drv_data = hid_get_drvdata(to_hid_device(dev));
 	return scnprintf(buf, PAGE_SIZE, "%u\n", drv_data->rim_id);
 }
-static DEVICE_ATTR(rim_id, S_IRUSR | S_IRGRP | S_IROTH, ftec_rim_id_show,
-		   NULL);
+static DEVICE_ATTR(rim_id, S_IRUSR | S_IRGRP | S_IROTH, ftec_rim_id_show, NULL);
 
 /* Export the wheel type (Fanatec SDK/Windows driver wheel-base-family id) */
 static ssize_t ftec_wheel_type_show(struct device *dev,
@@ -739,11 +743,13 @@ static void ftecff_update_slot(struct ftecff_slot *slot,
 		if (enable_highres_dynamic_effects) {
 			slot->current_cmd[2] = SCALE_COEFF(parameters->k1, 8);
 			slot->current_cmd[4] = SCALE_COEFF(parameters->k2, 8);
-			slot->current_cmd[6] = SCALE_VALUE_U16(parameters->clip, 8);
+			slot->current_cmd[6] =
+				SCALE_VALUE_U16(parameters->clip, 8);
 		} else {
 			slot->current_cmd[2] = SCALE_COEFF(parameters->k1, 4);
 			slot->current_cmd[4] = SCALE_COEFF(parameters->k2, 4);
-			slot->current_cmd[6] = SCALE_VALUE_U16(parameters->clip, 8);
+			slot->current_cmd[6] =
+				SCALE_VALUE_U16(parameters->clip, 8);
 		}
 		break;
 	}
@@ -1304,9 +1310,8 @@ static void ftec_event_driven_init(struct ftec_drv_data *drv_data)
 
 static void ftec_event_driven_init_work(struct work_struct *work)
 {
-	struct ftec_drv_data *drv_data =
-		container_of(work, struct ftec_drv_data,
-			     event_driven_init_work);
+	struct ftec_drv_data *drv_data = container_of(
+		work, struct ftec_drv_data, event_driven_init_work);
 
 	ftec_event_driven_init(drv_data);
 }
@@ -1360,8 +1365,8 @@ int ftecff_init(struct hid_device *hdev)
 
 		/* Set range so that centering spring gets disabled */
 		use_init_range = ftec_use_init_range(hdev, drv_data);
-		drv_data->range =
-			use_init_range ? init_range : drv_data->max_range;
+		drv_data->range = use_init_range ? init_range :
+						   drv_data->max_range;
 		ftec_set_range(hdev, drv_data->range);
 	}
 
@@ -1555,7 +1560,8 @@ int ftecff_raw_event(struct hid_device *hdev, struct hid_report *report,
 	} else if (data[0] == 0x01 && size == FTEC_WHEEL_REPORT_SIZE) {
 		if (hdev->product == CSR_ELITE_WHEELBASE_DEVICE_ID ||
 		    hdev->product == PORSCHE_911_WHEELBASE_DEVICE_ID) {
-			u8 wheel_type = ftec_wheel_type_from_legacy_report(data);
+			u8 wheel_type =
+				ftec_wheel_type_from_legacy_report(data);
 			if (wheel_type != FTEC_WHEELTYPE_UNKNOWN)
 				drv_data->wheel_type = wheel_type;
 		}

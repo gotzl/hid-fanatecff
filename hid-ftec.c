@@ -11,10 +11,16 @@
 
 // adjustabel initial value for break load cell
 int init_load = 4;
-module_param(init_load, int, 0);
+module_param(init_load, int, 0444);
+MODULE_PARM_DESC(init_load,
+		 "Initial brake load cell value (0-9); applied at device init");
+
 // expose PID HID descriptor via hidraw
 bool hidraw_pid = true;
-module_param(hidraw_pid, bool, 0);
+module_param(hidraw_pid, bool, 0444);
+MODULE_PARM_DESC(hidraw_pid,
+		 "Expose the PID HID descriptor via a hidraw device");
+
 // use custom button mapping
 bool custom_button_mapping = false;
 module_param(custom_button_mapping, bool, 0);
@@ -274,9 +280,8 @@ static int ftec_client_rdesc_fixup(struct ftec_drv_data_client *client,
 	     ref_pos != ref_end && pos != end;
 	     ref_pos += size + 1, pos += size + 1) {
 		if (*ref_pos == 0xC0) {
-			if (depth == 1 &&
-			    (top_usage == HID_GD_JOYSTICK ||
-			     top_usage == HID_GD_GAMEPAD)) {
+			if (depth == 1 && (top_usage == HID_GD_JOYSTICK ||
+					   top_usage == HID_GD_GAMEPAD)) {
 				if (pos + sizeof(rdesc_simulation) > end) {
 					hid_err(client->hdev,
 						"Need %lu bytes to inject simulation\n",
@@ -1234,9 +1239,9 @@ static struct hid_driver fanatec_driver = {
 	.raw_event = ftec_raw_event,
 };
 
-static struct class * _class_create(const char * name)
+static struct class *_class_create(const char *name)
 {
-	struct class* _class;
+	struct class *_class;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
 	_class = class_create(name);
@@ -1244,7 +1249,6 @@ static struct class * _class_create(const char * name)
 	ftec_wheel_class = class_create(THIS_MODULE, name);
 #endif
 	return _class;
-
 }
 
 static int __init fanatec_module_init(void)
