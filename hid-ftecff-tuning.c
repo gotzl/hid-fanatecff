@@ -278,6 +278,26 @@ static ssize_t ftec_tuning_store(struct device *dev,
 	return _ftec_tuning_store(dev, id, buf, count);
 }
 
+static ssize_t ftec_tuning_center_calibration(struct device *dev,
+				 struct device_attribute *attr, const char *buf,
+				 size_t count)
+{
+	struct hid_device *hid = to_hid_device(dev->parent);
+	u8 *buffer = kcalloc(FTEC_TUNING_REPORT_SIZE, sizeof(u8), GFP_KERNEL);
+	int ret;
+
+	// center calibration
+	buffer[0] = 0x01;
+	buffer[1] = 0xf9;
+	buffer[2] = 0x05;
+
+	ret = hid_hw_output_report(hid, buffer, FTEC_TUNING_REPORT_SIZE);
+
+	return count;
+}
+
+static DEVICE_ATTR(CENTER, S_IWUSR | S_IWGRP, NULL, ftec_tuning_center_calibration);
+
 static ssize_t ftec_tuning_reset(struct device *dev,
 				 struct device_attribute *attr, const char *buf,
 				 size_t count)
@@ -373,6 +393,7 @@ int ftec_tuning_classdev_register(struct device *parent,
 
 	CREATE_SYSFS_FILE(advanced_mode)
 
+	CREATE_SYSFS_FILE(CENTER)
 	CREATE_SYSFS_FILE(RESET)
 	CREATE_SYSFS_FILE(SLOT)
 	CREATE_SYSFS_FILE(SEN)
@@ -429,6 +450,7 @@ void ftec_tuning_classdev_unregister(
 
 	REMOVE_SYSFS_FILE(advanced_mode)
 
+	REMOVE_SYSFS_FILE(CENTER)
 	REMOVE_SYSFS_FILE(RESET)
 	REMOVE_SYSFS_FILE(SLOT)
 	REMOVE_SYSFS_FILE(SEN)
