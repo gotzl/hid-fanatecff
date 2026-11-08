@@ -24,6 +24,24 @@
 #define CSR_ELITE_WHEELBASE_DEVICE_ID 0x0011
 #define PORSCHE_911_WHEELBASE_DEVICE_ID 0x0197
 
+// Further ids handled by the Windows driver package (474). Only the device
+// family is known (FanatecApp.exe PID -> FSDevice* class mapping), not the
+// exact model, hence the generic names.
+#define CLUBSPORT_V1_WHEELBASE_DEVICE_ID 0x038E
+#define CSL_FAMILY_WHEELBASE_0002_DEVICE_ID 0x0002
+#define CSL_FAMILY_WHEELBASE_0E04_DEVICE_ID 0x0E04
+#define DD_FAMILY_WHEELBASE_0E05_DEVICE_ID 0x0E05
+#define DD_FAMILY_WHEELBASE_0E06_DEVICE_ID 0x0E06
+#define DD_FAMILY_WHEELBASE_0E07_DEVICE_ID 0x0E07
+// treated as ClubSport V2.5 (0x0004) by the Windows driver
+#define CLUBSPORT_V25_ALT_0008_DEVICE_ID 0x0008
+#define CLUBSPORT_V25_ALT_0009_DEVICE_ID 0x0009
+#define CLUBSPORT_V25_ALT_000A_DEVICE_ID 0x000A
+#define CLUBSPORT_V25_ALT_000B_DEVICE_ID 0x000B
+#define CLUBSPORT_V25_ALT_000C_DEVICE_ID 0x000C
+#define CLUBSPORT_PEDALS_FAMILY_1839_DEVICE_ID 0x1839
+#define CSL_PEDALS_FAMILY_1A95_DEVICE_ID 0x1A95
+
 // wheels (rim index byte as sent by the wheel-base: byte 30 of the 34-byte
 // wheel input report)
 #define CLUBSPORT_STEERING_WHEEL_BMW_M3_GT2_ID 0x01

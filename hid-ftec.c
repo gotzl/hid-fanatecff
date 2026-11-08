@@ -930,8 +930,14 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 	drv_data->min_range = 90;
 	// technically max_range is 1080, but 1090 is used as 'auto'
 	drv_data->max_range = 1090;
-	if (hdev->product == CLUBSPORT_V2_WHEELBASE_DEVICE_ID ||
+	if (hdev->product == CLUBSPORT_V1_WHEELBASE_DEVICE_ID ||
+	    hdev->product == CLUBSPORT_V2_WHEELBASE_DEVICE_ID ||
 	    hdev->product == CLUBSPORT_V25_WHEELBASE_DEVICE_ID ||
+	    hdev->product == CLUBSPORT_V25_ALT_0008_DEVICE_ID ||
+	    hdev->product == CLUBSPORT_V25_ALT_0009_DEVICE_ID ||
+	    hdev->product == CLUBSPORT_V25_ALT_000A_DEVICE_ID ||
+	    hdev->product == CLUBSPORT_V25_ALT_000B_DEVICE_ID ||
+	    hdev->product == CLUBSPORT_V25_ALT_000C_DEVICE_ID ||
 	    hdev->product == CSR_ELITE_WHEELBASE_DEVICE_ID ||
 	    hdev->product == PORSCHE_911_WHEELBASE_DEVICE_ID) {
 		drv_data->max_range = 900;
@@ -1225,6 +1231,49 @@ static const struct hid_device_id devices[] = {
 	  .driver_data = FTEC_FF },
 	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, PORSCHE_911_WHEELBASE_DEVICE_ID),
 	  .driver_data = FTEC_FF },
+
+	/*
+	 * Ids taken from the Windows driver package 474, untested on Linux.
+	 * The flags follow what the Windows driver does per device family:
+	 * the "new generation" ids (event driven init, tuning menu) are the ones
+	 * FanatecApp.exe enables the tuning menu/ITM interface for; that set
+	 * matches FTEC_EVENT_DRIVEN for the known ids 0004/0005/0006/0007/0020.
+	 * Model specific features (tuning entries, extended wheel range,
+	 * wheel-base LEDs, rumble) are deliberately not enabled.
+	 * FTEC_HIGHRES only for the DD family: Windows always uses 16-bit
+	 * constant force for DD bases, for other bases only with new enough
+	 * firmware. 8-bit is accepted by all bases (Windows can force it via
+	 * the FFB8BitMode registry value), so it is the safe default.
+	 */
+	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CLUBSPORT_V1_WHEELBASE_DEVICE_ID),
+	  .driver_data = FTEC_FF },
+	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_FAMILY_WHEELBASE_0002_DEVICE_ID),
+	  .driver_data = FTEC_FF },
+	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_FAMILY_WHEELBASE_0E04_DEVICE_ID),
+	  .driver_data = FTEC_FF | FTEC_TUNING_MENU | FTEC_EVENT_DRIVEN },
+	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, DD_FAMILY_WHEELBASE_0E05_DEVICE_ID),
+	  .driver_data = FTEC_FF | FTEC_TUNING_MENU | FTEC_HIGHRES |
+			 FTEC_EVENT_DRIVEN },
+	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, DD_FAMILY_WHEELBASE_0E06_DEVICE_ID),
+	  .driver_data = FTEC_FF | FTEC_TUNING_MENU | FTEC_HIGHRES |
+			 FTEC_EVENT_DRIVEN },
+	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, DD_FAMILY_WHEELBASE_0E07_DEVICE_ID),
+	  .driver_data = FTEC_FF | FTEC_TUNING_MENU | FTEC_HIGHRES |
+			 FTEC_EVENT_DRIVEN },
+	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CLUBSPORT_V25_ALT_0008_DEVICE_ID),
+	  .driver_data = FTEC_FF | FTEC_EVENT_DRIVEN },
+	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CLUBSPORT_V25_ALT_0009_DEVICE_ID),
+	  .driver_data = FTEC_FF | FTEC_EVENT_DRIVEN },
+	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CLUBSPORT_V25_ALT_000A_DEVICE_ID),
+	  .driver_data = FTEC_FF | FTEC_EVENT_DRIVEN },
+	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CLUBSPORT_V25_ALT_000B_DEVICE_ID),
+	  .driver_data = FTEC_FF | FTEC_EVENT_DRIVEN },
+	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CLUBSPORT_V25_ALT_000C_DEVICE_ID),
+	  .driver_data = FTEC_FF | FTEC_EVENT_DRIVEN },
+	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CLUBSPORT_PEDALS_FAMILY_1839_DEVICE_ID),
+	  .driver_data = FTEC_PEDALS },
+	{ HID_USB_DEVICE(FANATEC_VENDOR_ID, CSL_PEDALS_FAMILY_1A95_DEVICE_ID),
+	  .driver_data = FTEC_PEDALS },
 	{}
 };
 
