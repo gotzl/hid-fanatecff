@@ -7,6 +7,8 @@
 #include <linux/leds.h>
 #endif
 
+#include "hid-ftecff-encode.h"
+
 #define FANATEC_VENDOR_ID 0x0eb7
 
 // wheelbases
@@ -110,15 +112,6 @@ struct ftecff_effect_state {
 	unsigned int cmd_start_count;
 	int direction_gain;
 	int slope;
-};
-
-struct ftecff_effect_parameters {
-	int level;
-	int d1;
-	int d2;
-	int k1;
-	int k2;
-	unsigned int clip;
 };
 
 struct ftecff_slot {
