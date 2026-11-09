@@ -18,6 +18,17 @@ The Wheel Base should be set to 'PC mode' for the driver to be selected (CSL Eli
 * (experimental: 0EB7:0011 CSR Elite/Forza Motorsport Wheel Base)
 * (experimental: 0EB7:0197 Porsche 911 Turbo S / GT3 RS V2 Wheel)
 
+Untested ids taken from the Windows driver package; only the device family is
+known. Reports from owners are welcome:
+
+* (untested: 0EB7:038E FANATEC ClubSport Wheel Base V1)
+* (untested: 0EB7:0002 CSL family Wheel Base)
+* (untested: 0EB7:0E04 CSL family Wheel Base, newer generation)
+* (untested: 0EB7:0E05, 0EB7:0E06, 0EB7:0E07 DD family Wheel Base)
+* (untested: 0EB7:0008 to 0EB7:000C, handled like ClubSport Wheel Base V2.5)
+* (untested: 0EB7:1839 ClubSport Pedals family)
+* (untested: 0EB7:1A95 CSL Pedals family)
+
 ## Installation
 
 ### Dependencies
