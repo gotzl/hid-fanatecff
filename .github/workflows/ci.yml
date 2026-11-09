@@ -71,3 +71,12 @@ jobs:
 
       - name: Clean
         run: make clean
+
+  unit-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Run encoder unit tests
+        run: make test
