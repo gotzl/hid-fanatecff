@@ -286,12 +286,16 @@ static ssize_t ftec_tuning_center_calibration(struct device *dev,
 	u8 *buffer = kcalloc(FTEC_TUNING_REPORT_SIZE, sizeof(u8), GFP_KERNEL);
 	int ret;
 
+	if (!buffer)
+		return -ENOMEM;
+
 	// center calibration
 	buffer[0] = 0x01;
 	buffer[1] = 0xf9;
 	buffer[2] = 0x05;
 
 	ret = hid_hw_output_report(hid, buffer, FTEC_TUNING_REPORT_SIZE);
+	kfree(buffer);
 
 	return count;
 }
@@ -306,12 +310,16 @@ static ssize_t ftec_tuning_reset(struct device *dev,
 	u8 *buffer = kcalloc(FTEC_TUNING_REPORT_SIZE, sizeof(u8), GFP_KERNEL);
 	int ret;
 
+	if (!buffer)
+		return -ENOMEM;
+
 	// request current values
 	buffer[0] = 0xff;
 	buffer[1] = 0x03;
 	buffer[2] = 0x04;
 
 	ret = hid_hw_output_report(hid, buffer, FTEC_TUNING_REPORT_SIZE);
+	kfree(buffer);
 
 	return count;
 }
@@ -353,11 +361,14 @@ static ssize_t ftec_tuning_advanced_mode_store(struct device *dev,
 		if (advanced_mode != drv_data->tuning.advanced_mode) {
 			u8 *buffer = kcalloc(FTEC_TUNING_REPORT_SIZE,
 					     sizeof(u8), GFP_KERNEL);
+			if (!buffer)
+				return -ENOMEM;
 			buffer[0] = 0xff;
 			buffer[1] = 0x03;
 			buffer[2] = 0x06;
 			(void)hid_hw_output_report(hid, buffer,
 						   FTEC_TUNING_REPORT_SIZE);
+			kfree(buffer);
 		}
 	}
 	return count;
