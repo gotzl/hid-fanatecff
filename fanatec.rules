@@ -3,7 +3,7 @@ SUBSYSTEM=="hid", DRIVER=="fanatec", GOTO="ftec_module_settings"
 SUBSYSTEM=="input", DRIVERS=="fanatec", GOTO="ftec_input_settings"
 SUBSYSTEM=="leds", DRIVERS=="fanatec", GOTO="ftec_leds_settings"
 SUBSYSTEM=="ftec_tuning", ACTION=="add", GOTO="ftec_tuning_settings"
-SUBSYSTEMS=="usb", ATTRS{idVendor}=="0eb7", MODE="0666"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="0eb7", GROUP="games", MODE="0660"
 GOTO="fanatec_end"
 
 LABEL="ftec_module_settings"
