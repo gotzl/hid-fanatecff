@@ -11,6 +11,16 @@ clean:
 	@echo -e "\n::\033[32m Cleaning Fanatec kernel module\033[0m"
 	@echo "========================================"
 	$(MAKE) -C $(KERNEL_SRC) M="$$PWD" clean
+	rm -f unittest/test_encode
+
+# userspace unit tests, no kernel headers or hardware needed
+test: unittest/test_encode
+	./unittest/test_encode
+
+unittest/test_encode: unittest/test_encode.c hid-ftecff-encode.h
+	$(CC) -std=gnu11 -Wall -Wextra -Werror -o $@ unittest/test_encode.c
+
+.PHONY: default clean install uninstall test
 
 install:
 	@echo -e "\n::\033[34m Installing Fanatec kernel module/udev rule\033[0m"

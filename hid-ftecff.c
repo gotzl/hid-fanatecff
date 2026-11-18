@@ -672,86 +672,17 @@ static void ftecff_update_slot(struct ftecff_slot *slot,
 {
 	u8 original_cmd[7];
 	unsigned short i;
-	int d1;
-	int d2;
-	int s1;
-	int s2;
 
 	memcpy(original_cmd, slot->current_cmd, sizeof(original_cmd));
-	memset(slot->current_cmd, 0, sizeof(slot->current_cmd));
 
-	// select slot
-	slot->current_cmd[0] = (slot->id << 4) | 0x1;
-	// set command
-	slot->current_cmd[1] = slot->cmd;
-
-	if ((slot->effect_type == FF_CONSTANT && parameters->level == 0) ||
-	    (slot->effect_type != FF_CONSTANT && parameters->clip == 0)) {
-		// disable slot
-		slot->current_cmd[0] |= 0x2;
-		// reset values
-		if (slot->effect_type != FF_CONSTANT &&
-		    slot->effect_type != FF_SPRING) {
-			slot->current_cmd[2] = 0x00;
-			slot->current_cmd[4] = 0x00;
-			slot->current_cmd[6] = 0xff;
-		}
+	if (!ftecff_encode_slot_cmd(slot->current_cmd, slot->id, slot->cmd,
+				    slot->effect_type, parameters, highres,
+				    enable_highres_dynamic_effects)) {
+		// slot disabled: only a change of the enable state matters
 		if (original_cmd[0] != slot->current_cmd[0]) {
 			slot->is_updated = 1;
 		}
 		return;
-	}
-
-#define CLAMP_VALUE_U16(x) ((unsigned short)((x) > 0xffff ? 0xffff : (x)))
-#define CLAMP_VALUE_S16(x)                           \
-	((unsigned short)((x) <= -0x8000 ? -0x8000 : \
-					   ((x) > 0x7fff ? 0x7fff : (x))))
-#define TRANSLATE_FORCE(x, bits) ((CLAMP_VALUE_S16(x) + 0x8000) >> (16 - bits))
-#define SCALE_VALUE_U16(x, bits) (CLAMP_VALUE_U16(x) >> (16 - bits))
-#define SCALE_COEFF(x, bits) SCALE_VALUE_U16(abs(x) * 2, bits)
-
-	switch (slot->effect_type) {
-	case FF_CONSTANT:
-		if (highres) {
-			d1 = TRANSLATE_FORCE(parameters->level, 16);
-			slot->current_cmd[2] = d1 & 0xff;
-			slot->current_cmd[3] = (d1 >> 8) & 0xff;
-			slot->current_cmd[6] = 0x01;
-		} else {
-			slot->current_cmd[2] =
-				TRANSLATE_FORCE(parameters->level, 8);
-		}
-		break;
-	case FF_SPRING:
-		d1 = SCALE_VALUE_U16(((parameters->d1) + 0x8000) & 0xffff, 11);
-		d2 = SCALE_VALUE_U16(((parameters->d2) + 0x8000) & 0xffff, 11);
-		s1 = parameters->k1 < 0;
-		s2 = parameters->k2 < 0;
-		slot->current_cmd[2] = d1 >> 3;
-		slot->current_cmd[3] = d2 >> 3;
-		slot->current_cmd[4] = (SCALE_COEFF(parameters->k2, 4) << 4) +
-				       SCALE_COEFF(parameters->k1, 4);
-		slot->current_cmd[6] = SCALE_VALUE_U16(parameters->clip, 8);
-		break;
-	case FF_DAMPER:
-	case FF_INERTIA:
-	case FF_FRICTION:
-		// On DD1, the legacy 4-bit coeff (max 0x0f) was too weak to feel; an
-		// 8-bit coeff in byte 2/4 produces clear resistance. Non-zero byte 3/5
-		// caused oscillation instead of damping, so keep them zero. Applied to
-		// highres bases; other models untested.
-		if (enable_highres_dynamic_effects) {
-			slot->current_cmd[2] = SCALE_COEFF(parameters->k1, 8);
-			slot->current_cmd[4] = SCALE_COEFF(parameters->k2, 8);
-			slot->current_cmd[6] =
-				SCALE_VALUE_U16(parameters->clip, 8);
-		} else {
-			slot->current_cmd[2] = SCALE_COEFF(parameters->k1, 4);
-			slot->current_cmd[4] = SCALE_COEFF(parameters->k2, 4);
-			slot->current_cmd[6] =
-				SCALE_VALUE_U16(parameters->clip, 8);
-		}
-		break;
 	}
 
 	// check if slot needs to be updated
@@ -770,19 +701,21 @@ static void ftecff_update_slot(struct ftecff_slot *slot,
 			      slot->current_cmd[3], slot->current_cmd[6]);
 			break;
 		case FF_SPRING:
-			DEBUG("spring: %i %i %i %i %i %i %i %i %i\n",
+			DEBUG("spring: %i %i %i %i %i %i %i %i 0x%02x %i\n",
 			      parameters->d1, parameters->d2, parameters->k1,
 			      parameters->k2, parameters->clip,
 			      slot->current_cmd[2], slot->current_cmd[3],
-			      slot->current_cmd[4], slot->current_cmd[6]);
+			      slot->current_cmd[4], slot->current_cmd[5],
+			      slot->current_cmd[6]);
 			break;
 		case FF_DAMPER:
 		case FF_INERTIA:
 		case FF_FRICTION:
-			DEBUG("damper/friction/inertia: 0x%x %i %i %i %i %i %i %i %i\n",
+			DEBUG("damper/friction/inertia: 0x%x %i %i %i %i %i %i %i %i %i %i\n",
 			      slot->effect_type, parameters->d1, parameters->d2,
 			      parameters->k1, parameters->k2, parameters->clip,
-			      slot->current_cmd[2], slot->current_cmd[4],
+			      slot->current_cmd[2], slot->current_cmd[3],
+			      slot->current_cmd[4], slot->current_cmd[5],
 			      slot->current_cmd[6]);
 			break;
 		}
