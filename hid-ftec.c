@@ -896,13 +896,10 @@ static bool ftec_hw_open_required(struct ftec_drv_data *drv_data)
 
 static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 {
-	struct usb_interface *iface = to_usb_interface(hdev->dev.parent);
-	__u8 iface_num = iface->cur_altsetting->desc.bInterfaceNumber;
+	struct usb_interface *iface;
 	unsigned int connect_mask = HID_CONNECT_HIDINPUT | HID_CONNECT_HIDDEV;
 	struct ftec_drv_data *drv_data;
 	int ret;
-
-	dbg_hid("%s: ifnum %d\n", __func__, iface_num);
 
 	ret = hid_parse(hdev);
 	if (ret) {
@@ -918,6 +915,21 @@ static int ftec_probe(struct hid_device *hdev, const struct hid_device_id *id)
 	if (hdev->group == HID_GROUP_STEAM) {
 		return hid_hw_start(hdev, HID_CONNECT_HIDRAW);
 	}
+
+	/*
+	 * The driver relies on usbhid: the parent must be a USB interface, and
+	 * FFB output reports are sent from atomic context via hid_hw_request(),
+	 * which only usbhid handles asynchronously. Refuse other transports
+	 * (e.g. uhid). This check has to come after the client check above:
+	 * the client device uses ftec_client_ll_driver, so hid_is_usb() is
+	 * false for it.
+	 */
+	if (!hid_is_usb(hdev))
+		return -EINVAL;
+
+	iface = to_usb_interface(hdev->dev.parent);
+	dbg_hid("%s: ifnum %d\n", __func__,
+		iface->cur_altsetting->desc.bInterfaceNumber);
 
 	drv_data = kzalloc(sizeof(struct ftec_drv_data), GFP_KERNEL);
 	if (!drv_data) {
