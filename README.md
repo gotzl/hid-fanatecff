@@ -18,12 +18,12 @@ For full features - FFB, Fanatec SDK, FullForce, LEDs/display:
 
 1. Set base to PC mode (red LED) and install driver:
    `sudo ./install.sh`, or `make && sudo make install`; then
-   `sudo udevadm control --reload-rules && sudo udevadm trigger`
+   `sudo udevadm control --reload-rules && sudo udevadm trigger`   
    See [Installation](#installation).
-2. Use Proton >= 10.0-2 so HIDRAW is enabled for Fanatec wheel bases by default.
+2. Use Proton >= 10.0-2 so HIDRAW is enabled for Fanatec wheel bases by default.   
    See [Implementation](#implementation).
-3. Per game prefix, install FullForce / SDK-LED shim:
-   `./setup_ftec_fwfilter.sh --proton <APPID>`, use `--rim 9rgb|single-rgb|9mono` to match your rim.
+3. (Optional) Per game prefix, install FullForce / SDK-LED shim:
+   `./setup_ftec_fwfilter.sh --proton <APPID>`   
    See [Implementation](#implementation) and [fwfilterusb-wine](https://github.com/gotzl/fwfilterusb-wine).
 
 ## Known devices
