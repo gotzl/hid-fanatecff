@@ -20,3 +20,4 @@ Mkfile.old
 # local dirs
 data/
 tests/
+unittest/test_encode
